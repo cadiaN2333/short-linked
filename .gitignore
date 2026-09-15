@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+# 本机数据库配置，禁止提交
+/src/main/resources/application-local.yaml

@@ -1,3 +1,5 @@
 spring:
   application:
     name: short-link
+  profiles:
+    default: local
