@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -22,6 +23,9 @@ class ShortLinkServiceTest {
 
     @Autowired
     private ShortLinkMapper shortLinkMapper;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Test
     @Transactional
@@ -55,6 +59,7 @@ class ShortLinkServiceTest {
 
         ShortLinkService fixedShortCodeService = new FixedShortCodeService(
                 shortLinkMapper,
+                stringRedisTemplate,
                 conflictedCode,
                 availableCode
         );
@@ -74,9 +79,10 @@ class ShortLinkServiceTest {
 
         private FixedShortCodeService(
                 ShortLinkMapper shortLinkMapper,
+                StringRedisTemplate stringRedisTemplate,
                 String... shortCodes
         ) {
-            super(shortLinkMapper);
+            super(stringRedisTemplate, shortLinkMapper);
             this.shortCodes.addAll(java.util.List.of(shortCodes));
         }
 

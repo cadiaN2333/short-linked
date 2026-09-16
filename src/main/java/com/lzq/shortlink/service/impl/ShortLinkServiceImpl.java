@@ -5,6 +5,7 @@ import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkMapper;
 import com.lzq.shortlink.service.ShortLinkService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -61,6 +62,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
             try {
                 shortLinkMapper.insert(shortLink);
+                log.info(
+                        "短链接创建成功，shortCode={}，expireAt={}",
+                        shortLink.getShortCode(),
+                        shortLink.getExpireAt()
+                );
                 return shortLink;
             } catch (DuplicateKeyException exception) {
                 if (attempt == MAX_RETRY_COUNT - 1) {
@@ -72,12 +78,28 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         throw new IllegalStateException("短码生成失败，请稍后重试");
     }
 
+    /**
+     * 查询存在且未过期的短链接。
+     *
+     * @param shortCode 短码
+     * @return 有效短链接；不存在或过期时返回 null
+     */
     @Override
     public ShortLink findAvailableShortLink(String shortCode) {
         String cacheKey = REDIS_KEY_PREFIX + shortCode;
 
         // 1. 先查 Redis
-        String originalUrl = stringRedisTemplate.opsForValue().get(cacheKey);
+        String originalUrl = null;
+
+        try {
+            originalUrl = stringRedisTemplate.opsForValue().get(cacheKey);
+        } catch (RedisConnectionFailureException exception) {
+            log.warn(
+                    "Redis 读取失败，已降级查询 MySQL，shortCode={}",
+                    shortCode,
+                    exception
+            );
+        }
 
         if (originalUrl != null) {
             log.info("短链接缓存命中，shortCode={}", shortCode);
@@ -99,9 +121,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             return null;
         }
 
-        // 3. 已过期：不跳转，也不写入缓存
+        // 已过期：不跳转，也不写入缓存
+        Duration remaining = null;
+
         if (shortLink.getExpireAt() != null) {
-            Duration remaining = Duration.between(
+            remaining = Duration.between(
                     LocalDateTime.now(),
                     shortLink.getExpireAt()
             );
@@ -109,22 +133,35 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             if (remaining.isZero() || remaining.isNegative()) {
                 return null;
             }
+        }
 
-            // 缓存剩余有效期，避免 Redis 中的链接比数据库活得更久
-            stringRedisTemplate.opsForValue().set(
-                    cacheKey,
-                    shortLink.getOriginalUrl(),
-                    remaining
+        try {
+            if (remaining != null) {
+                // 有过期时间的链接：Redis TTL 与链接剩余有效期一致
+                stringRedisTemplate.opsForValue().set(
+                        cacheKey,
+                        shortLink.getOriginalUrl(),
+                        remaining
+                );
+                log.info(
+                        "短链接缓存剩余有效期，shortCode={}, remaining={}",
+                        shortCode,
+                        remaining
+                );
+            } else {
+                // 永久链接：Redis 不设置过期时间
+                stringRedisTemplate.opsForValue().set(
+                        cacheKey,
+                        shortLink.getOriginalUrl()
+                );
+                log.info("短链接缓存永久有效期，shortCode={}", shortCode);
+            }
+        } catch (RedisConnectionFailureException exception) {
+            log.warn(
+                    "Redis 写入失败，本次请求仍使用 MySQL 结果，shortCode={}",
+                    shortCode,
+                    exception
             );
-            log.info("短链接缓存剩余有效期，shortCode={}, remaining={}",
-                    shortCode, remaining);
-        } else {
-            // 永久链接不设置过期时间
-            stringRedisTemplate.opsForValue().set(
-                    cacheKey,
-                    shortLink.getOriginalUrl()
-            );
-            log.info("短链接缓存永久有效期，shortCode={}", shortCode);
         }
 
         return shortLink;
