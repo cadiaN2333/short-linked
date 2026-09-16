@@ -4,15 +4,19 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkMapper;
 import com.lzq.shortlink.service.ShortLinkService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * 短链接业务接口实现。
  */
+@Slf4j
 @Service
 public class ShortLinkServiceImpl implements ShortLinkService {
 
@@ -26,9 +30,17 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     // 最大重试次数
     private static final int MAX_RETRY_COUNT = 3;
 
+    private static final String REDIS_KEY_PREFIX = "short-link:";
+
+    private final StringRedisTemplate stringRedisTemplate;
+
     private final ShortLinkMapper shortLinkMapper;
 
-    public ShortLinkServiceImpl(ShortLinkMapper shortLinkMapper) {
+    public ShortLinkServiceImpl(
+            StringRedisTemplate stringRedisTemplate,
+            ShortLinkMapper shortLinkMapper
+    ) {
+        this.stringRedisTemplate = stringRedisTemplate;
         this.shortLinkMapper = shortLinkMapper;
     }
 
@@ -62,6 +74,22 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     @Override
     public ShortLink findAvailableShortLink(String shortCode) {
+        String cacheKey = REDIS_KEY_PREFIX + shortCode;
+
+        // 1. 先查 Redis
+        String originalUrl = stringRedisTemplate.opsForValue().get(cacheKey);
+
+        if (originalUrl != null) {
+            log.info("短链接缓存命中，shortCode={}", shortCode);
+            ShortLink cachedShortLink = new ShortLink();
+            cachedShortLink.setShortCode(shortCode);
+            cachedShortLink.setOriginalUrl(originalUrl);
+
+            return cachedShortLink;
+        }
+
+        // 2. Redis 未命中，再查 MySQL
+        log.info("短链接缓存未命中，查询数据库，shortCode={}", shortCode);
         ShortLink shortLink = shortLinkMapper.selectOne(
                 new LambdaQueryWrapper<ShortLink>()
                         .eq(ShortLink::getShortCode, shortCode)
@@ -71,9 +99,32 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             return null;
         }
 
-        if (shortLink.getExpireAt() != null
-                && !shortLink.getExpireAt().isAfter(LocalDateTime.now())) {
-            return null;
+        // 3. 已过期：不跳转，也不写入缓存
+        if (shortLink.getExpireAt() != null) {
+            Duration remaining = Duration.between(
+                    LocalDateTime.now(),
+                    shortLink.getExpireAt()
+            );
+
+            if (remaining.isZero() || remaining.isNegative()) {
+                return null;
+            }
+
+            // 缓存剩余有效期，避免 Redis 中的链接比数据库活得更久
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    shortLink.getOriginalUrl(),
+                    remaining
+            );
+            log.info("短链接缓存剩余有效期，shortCode={}, remaining={}",
+                    shortCode, remaining);
+        } else {
+            // 永久链接不设置过期时间
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    shortLink.getOriginalUrl()
+            );
+            log.info("短链接缓存永久有效期，shortCode={}", shortCode);
         }
 
         return shortLink;
