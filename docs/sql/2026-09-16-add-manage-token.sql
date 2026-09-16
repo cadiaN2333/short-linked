@@ -1,3 +1,7 @@
+-- 历史参考脚本：数据库结构已由 Flyway 的
+-- src/main/resources/db/migration/V1__baseline_schema.sql 接管。
+-- 新环境和后续环境不要重复手工执行本文件；仅用于历史核对和结构排查。
+
 -- 为既有短链接补充管理凭证。每个迁移步骤只执行一次。
 ALTER TABLE short_link
     ADD COLUMN manage_token CHAR(32) NULL COMMENT '管理凭证' AFTER original_url;

@@ -4,6 +4,15 @@ spring:
   profiles:
     default: local
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    baseline-description: 初始数据库基线
+    validate-on-migrate: true
+    clean-disabled: true
+
   rabbitmq:
     listener:
       simple:

@@ -1,8 +1,22 @@
--- 历史参考脚本：数据库结构已由 Flyway 的
--- src/main/resources/db/migration/V1__baseline_schema.sql 接管。
--- 新环境和后续环境不要重复手工执行本文件；仅用于历史核对和结构排查。
+-- 当前短链接核心表和访问统计表的初始基线。
+-- 该脚本必须兼容已经存在的本地数据库，不删除业务数据。
 
--- 短链接访问事件去重表
+CREATE TABLE IF NOT EXISTS short_link (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+    short_code VARCHAR(16) NOT NULL COMMENT '短码',
+    original_url VARCHAR(2048) NOT NULL COMMENT '原始链接',
+    manage_token CHAR(32) NOT NULL COMMENT '管理凭证',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    expire_at DATETIME NULL COMMENT '过期时间',
+    visit_count BIGINT NOT NULL DEFAULT 0 COMMENT '累计访问次数',
+    last_visited_at DATETIME NULL COMMENT '最近访问时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_short_code (short_code),
+    UNIQUE KEY uk_manage_token (manage_token)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COMMENT = '短链接表';
+
 CREATE TABLE IF NOT EXISTS short_link_visit_event (
     event_id CHAR(32) NOT NULL COMMENT '访问事件唯一标识',
     short_link_id BIGINT UNSIGNED NOT NULL COMMENT '短链接主键',
@@ -14,7 +28,6 @@ CREATE TABLE IF NOT EXISTS short_link_visit_event (
   DEFAULT CHARSET = utf8mb4
   COMMENT = '短链接访问事件去重表';
 
--- 短链接每日 PV 聚合表
 CREATE TABLE IF NOT EXISTS short_link_daily_stat (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     short_link_id BIGINT UNSIGNED NOT NULL COMMENT '短链接主键',
