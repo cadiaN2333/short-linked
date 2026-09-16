@@ -33,6 +33,8 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     private static final String REDIS_KEY_PREFIX = "short-link:";
 
+    private static final String VISIT_COUNT_KEY_PREFIX = "short-link:visit:";
+
     private final StringRedisTemplate stringRedisTemplate;
 
     private final ShortLinkMapper shortLinkMapper;
@@ -165,6 +167,27 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         }
 
         return shortLink;
+    }
+
+    /**
+     * 记录一次有效短链接访问。
+     *
+     * @param shortCode 被访问的有效短码
+     */
+    @Override
+    public void recordVisit(String shortCode) {
+        String visitCountKey = VISIT_COUNT_KEY_PREFIX + shortCode;
+
+        try {
+            stringRedisTemplate.opsForValue().increment(visitCountKey);
+            log.info("短链接访问次数增加，shortCode={}", shortCode);
+        } catch (RedisConnectionFailureException exception) {
+            log.warn(
+                    "Redis 写入失败，本次请求仍使用 MySQL 结果，shortCode={}",
+                    shortCode,
+                    exception
+            );
+        }
     }
 
     /**

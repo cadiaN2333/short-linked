@@ -25,4 +25,11 @@ public interface ShortLinkService {
      * @return 有效短链接；不存在或过期时返回 null
      */
     ShortLink findAvailableShortLink(String shortCode);
+
+    /**
+     * 记录一次有效短链接访问。
+     *
+     * @param shortCode 被访问的有效短码
+     */
+    void recordVisit(String shortCode);
 }

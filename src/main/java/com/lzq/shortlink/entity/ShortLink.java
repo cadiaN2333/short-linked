@@ -29,4 +29,10 @@ public class ShortLink {
 
     /** 过期时间，为 null 表示永久有效。 */
     private LocalDateTime expireAt;
+
+    /** 已落库的累计访问次数。 */
+    private Long visitCount;
+
+    /** 最近一次落库的访问时间。 */
+    private LocalDateTime lastVisitedAt;
 }
