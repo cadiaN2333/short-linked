@@ -78,8 +78,8 @@ mvn test "-Dtest=FlywayMigrationScriptTest"
 
 ```xml
 <dependency>
-    <groupId>org.flywaydb</groupId>
-    <artifactId>flyway-core</artifactId>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-flyway</artifactId>
 </dependency>
 <dependency>
     <groupId>org.flywaydb</groupId>
@@ -87,7 +87,7 @@ mvn test "-Dtest=FlywayMigrationScriptTest"
 </dependency>
 ```
 
-不手工指定版本，使用 Spring Boot 依赖管理，避免 Flyway 与 Spring Boot 版本不兼容。
+Spring Boot 4 使用 `spring-boot-starter-flyway` 提供 Flyway 自动配置；`flyway-mysql` 提供 MySQL 数据库类型支持。两项都不手工指定版本，统一使用 Spring Boot 依赖管理，避免 Flyway 与 Spring Boot 版本不兼容。
 
 - [ ] **步骤 2：增加 Flyway 配置**
 
@@ -178,7 +178,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+@SpringBootTest(classes = ShortLinkApplication.class)
 class FlywayContextTest {
 
     @Autowired
