@@ -39,7 +39,7 @@ public interface ShortLinkService {
     /**
      * 记录一次有效短链接访问。
      *
-     * @param shortCode 被访问的有效短码
+     * @param shortLink 被访问的有效短链接
      */
-    void recordVisit(String shortCode);
+    void recordVisit(ShortLink shortLink);
 }

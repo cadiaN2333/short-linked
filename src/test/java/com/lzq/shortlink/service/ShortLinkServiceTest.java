@@ -1,5 +1,6 @@
 package com.lzq.shortlink.service;
 import com.lzq.shortlink.service.impl.ShortLinkServiceImpl;
+import com.lzq.shortlink.message.VisitEventPublisher;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -110,7 +111,11 @@ class ShortLinkServiceTest {
                 StringRedisTemplate stringRedisTemplate,
                 String... shortCodes
         ) {
-            super(stringRedisTemplate, shortLinkMapper);
+            super(
+                    stringRedisTemplate,
+                    shortLinkMapper,
+                    org.mockito.Mockito.mock(VisitEventPublisher.class)
+            );
             this.shortCodes.addAll(java.util.List.of(shortCodes));
         }
 

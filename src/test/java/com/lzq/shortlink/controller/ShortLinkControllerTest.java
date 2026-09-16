@@ -1,6 +1,7 @@
 package com.lzq.shortlink.controller;
 
 import com.lzq.shortlink.entity.ShortLink;
+import com.lzq.shortlink.mapper.ShortLinkDailyStatMapper;
 import com.lzq.shortlink.service.ShortLinkService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +30,9 @@ class ShortLinkControllerTest {
 
     @Autowired
     private ShortLinkService shortLinkService;
+
+    @Autowired
+    private ShortLinkDailyStatMapper shortLinkDailyStatMapper;
 
     @Test
     @Transactional
@@ -63,5 +69,76 @@ class ShortLinkControllerTest {
                         .header("X-Manage-Token", "invalid-token"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("LINK_NOT_FOUND"));
+    }
+
+    @Test
+    @Transactional
+    void shouldReturnSevenDayPvTrendByDefault() throws Exception {
+        ShortLink shortLink = shortLinkService.createShortLink(
+                "https://example.com/trend",
+                null
+        );
+
+        mockMvc.perform(get(
+                        "/api/links/{shortCode}/stats",
+                        shortLink.getShortCode()
+                )
+                        .header("X-Manage-Token", shortLink.getManageToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.granularity").value("day"))
+                .andExpect(jsonPath("$.pvTrend.length()").value(7))
+                .andExpect(jsonPath("$.pvTrend[0].pv").value(0));
+    }
+
+    @Test
+    void shouldRejectUnsupportedGranularity() throws Exception {
+        mockMvc.perform(get("/api/links/abc12345/stats")
+                        .queryParam("granularity", "hour")
+                        .header("X-Manage-Token", "invalid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_STATISTICS_RANGE"));
+    }
+
+    @Test
+    void shouldRejectMoreThanNinetyDays() throws Exception {
+        mockMvc.perform(get("/api/links/abc12345/stats")
+                        .queryParam("from", "2026-01-01")
+                        .queryParam("to", "2026-04-01")
+                        .header("X-Manage-Token", "invalid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code")
+                        .value("INVALID_STATISTICS_RANGE"));
+    }
+
+    @Test
+    @Transactional
+    void shouldReturnPvForRequestedDateRange() throws Exception {
+        ShortLink shortLink = shortLinkService.createShortLink(
+                "https://example.com/trend-with-data",
+                null
+        );
+        LocalDate statDate = LocalDate.of(2026, 9, 15);
+        shortLinkDailyStatMapper.incrementPv(shortLink.getId(), statDate);
+        shortLinkDailyStatMapper.incrementPv(shortLink.getId(), statDate);
+
+        mockMvc.perform(get(
+                        "/api/links/{shortCode}/stats",
+                        shortLink.getShortCode()
+                )
+                        .queryParam("from", "2026-09-14")
+                        .queryParam("to", "2026-09-16")
+                        .header("X-Manage-Token", shortLink.getManageToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pvTrend.length()").value(3))
+                .andExpect(jsonPath("$.pvTrend[0].date")
+                        .value("2026-09-14"))
+                .andExpect(jsonPath("$.pvTrend[0].pv").value(0))
+                .andExpect(jsonPath("$.pvTrend[1].date")
+                        .value("2026-09-15"))
+                .andExpect(jsonPath("$.pvTrend[1].pv").value(2))
+                .andExpect(jsonPath("$.pvTrend[2].date")
+                        .value("2026-09-16"))
+                .andExpect(jsonPath("$.pvTrend[2].pv").value(0));
     }
 }

@@ -3,6 +3,7 @@ package com.lzq.shortlink.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkMapper;
+import com.lzq.shortlink.message.VisitEventPublisher;
 import com.lzq.shortlink.service.ShortLinkService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -36,17 +37,24 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     private static final String VISIT_COUNT_KEY_PREFIX = "short-link:visit:";
 
+    private static final String SHORT_LINK_ID_KEY_PREFIX = "short-link:id:";
+
     private final StringRedisTemplate stringRedisTemplate;
 
     private final ShortLinkMapper shortLinkMapper;
 
+    private final VisitEventPublisher visitEventPublisher;
+
     public ShortLinkServiceImpl(
             StringRedisTemplate stringRedisTemplate,
-            ShortLinkMapper shortLinkMapper
+            ShortLinkMapper shortLinkMapper,
+            VisitEventPublisher visitEventPublisher
     ) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.shortLinkMapper = shortLinkMapper;
+        this.visitEventPublisher = visitEventPublisher;
     }
+
 
     /**
      * 创建并保存短链接。
@@ -91,12 +99,16 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     @Override
     public ShortLink findAvailableShortLink(String shortCode) {
         String cacheKey = REDIS_KEY_PREFIX + shortCode;
+        String shortLinkIdCacheKey = SHORT_LINK_ID_KEY_PREFIX + shortCode;
 
         // 1. 先查 Redis
         String originalUrl = null;
+        String shortLinkId = null;
 
         try {
             originalUrl = stringRedisTemplate.opsForValue().get(cacheKey);
+            shortLinkId = stringRedisTemplate.opsForValue()
+                    .get(shortLinkIdCacheKey);
         } catch (RedisConnectionFailureException exception) {
             log.warn(
                     "Redis 读取失败，已降级查询 MySQL，shortCode={}",
@@ -105,11 +117,12 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             );
         }
 
-        if (originalUrl != null) {
+        if (originalUrl != null && shortLinkId != null) {
             log.info("短链接缓存命中，shortCode={}", shortCode);
             ShortLink cachedShortLink = new ShortLink();
             cachedShortLink.setShortCode(shortCode);
             cachedShortLink.setOriginalUrl(originalUrl);
+            cachedShortLink.setId(Long.parseLong(shortLinkId));
 
             return cachedShortLink;
         }
@@ -147,6 +160,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                         shortLink.getOriginalUrl(),
                         remaining
                 );
+                stringRedisTemplate.opsForValue().set(
+                        shortLinkIdCacheKey,
+                        String.valueOf(shortLink.getId()),
+                        remaining
+                );
                 log.info(
                         "短链接缓存剩余有效期，shortCode={}, remaining={}",
                         shortCode,
@@ -157,6 +175,10 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                 stringRedisTemplate.opsForValue().set(
                         cacheKey,
                         shortLink.getOriginalUrl()
+                );
+                stringRedisTemplate.opsForValue().set(
+                        shortLinkIdCacheKey,
+                        String.valueOf(shortLink.getId())
                 );
                 log.info("短链接缓存永久有效期，shortCode={}", shortCode);
             }
@@ -195,10 +217,11 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     /**
      * 记录一次有效短链接访问。
      *
-     * @param shortCode 被访问的有效短码
+     * @param shortLink 被访问的有效短链接
      */
     @Override
-    public void recordVisit(String shortCode) {
+    public void recordVisit(ShortLink shortLink) {
+        String shortCode = shortLink.getShortCode();
         String visitCountKey = VISIT_COUNT_KEY_PREFIX + shortCode;
 
         try {
@@ -206,11 +229,13 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             log.info("短链接访问次数增加，shortCode={}", shortCode);
         } catch (RedisConnectionFailureException exception) {
             log.warn(
-                    "Redis 写入失败，本次请求仍使用 MySQL 结果，shortCode={}",
+                    "Redis 写入失败，本次请求仍继续发布访问事件，shortCode={}",
                     shortCode,
                     exception
             );
         }
+
+        visitEventPublisher.publish(shortLink);
     }
 
     /**

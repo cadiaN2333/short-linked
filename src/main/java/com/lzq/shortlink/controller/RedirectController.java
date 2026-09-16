@@ -34,7 +34,7 @@ public class RedirectController {
             throw new ShortLinkNotFoundException();
         }
 
-        shortLinkService.recordVisit(shortCode);
+        shortLinkService.recordVisit(shortLink);
 
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(shortLink.getOriginalUrl()))

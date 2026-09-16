@@ -2,7 +2,9 @@ package com.lzq.shortlink.dto;
 
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 短链接统计查询响应。
@@ -21,4 +23,16 @@ public class ShortLinkStatisticsResponse {
 
     /** 最近一次落库的访问时间。 */
     private LocalDateTime lastVisitedAt;
+
+    /** 趋势起始日期。 */
+    private LocalDate trendFrom;
+
+    /** 趋势结束日期。 */
+    private LocalDate trendTo;
+
+    /** 当前统计粒度。 */
+    private String granularity;
+
+    /** 按日期升序排列的每日 PV。 */
+    private List<DailyPvResponse> pvTrend;
 }

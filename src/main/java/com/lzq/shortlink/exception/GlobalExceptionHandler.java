@@ -52,6 +52,17 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidStatisticsRangeException.class)
+    public ResponseEntity<ApiErrorResponse> handleStatisticsRangeException(
+            InvalidStatisticsRangeException exception
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_STATISTICS_RANGE",
+                exception.getMessage()
+        );
+    }
+
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
             String code,

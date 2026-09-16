@@ -4,6 +4,17 @@ spring:
   profiles:
     default: local
 
+  rabbitmq:
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-attempts: 3
+          max-interval: 3000ms
+          multiplier: 1
+
   data:
     redis:
       host: localhost
