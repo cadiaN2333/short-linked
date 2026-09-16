@@ -27,6 +27,16 @@ public interface ShortLinkService {
     ShortLink findAvailableShortLink(String shortCode);
 
     /**
+     * 使用短码和管理凭证查询短链接统计。
+     * 已过期短链接仍可被查询。
+     *
+     * @param shortCode 短码
+     * @param manageToken 管理凭证
+     * @return 匹配的短链接；短码或凭证不匹配时返回 null
+     */
+    ShortLink findShortLinkForStatistics(String shortCode, String manageToken);
+
+    /**
      * 记录一次有效短链接访问。
      *
      * @param shortCode 被访问的有效短码

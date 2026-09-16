@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -60,6 +61,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             ShortLink shortLink = new ShortLink();
             shortLink.setShortCode(generateShortCode());
             shortLink.setOriginalUrl(originalUrl);
+            shortLink.setManageToken(generateManageToken());
             shortLink.setExpireAt(expireAt);
 
             try {
@@ -170,6 +172,27 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
     /**
+     * 使用短码和管理凭证查询短链接统计。
+     * 已过期短链接仍可被查询。
+     *
+     * @param shortCode 短码
+     * @param manageToken 管理凭证
+     * @return 匹配的短链接；短码或凭证不匹配时返回 null
+     */
+    @Override
+    public ShortLink findShortLinkForStatistics(String shortCode, String manageToken) {
+        if (manageToken == null || manageToken.isBlank()) {
+            return null;
+        }
+
+        return shortLinkMapper.selectOne(
+                new LambdaQueryWrapper<ShortLink>()
+                        .eq(ShortLink::getShortCode, shortCode)
+                        .eq(ShortLink::getManageToken, manageToken)
+        );
+    }
+
+    /**
      * 记录一次有效短链接访问。
      *
      * @param shortCode 被访问的有效短码
@@ -188,6 +211,15 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                     exception
             );
         }
+    }
+
+    /**
+     * 生成统计查询使用的管理凭证。
+     *
+     * @return 32 位随机十六进制字符串
+     */
+    private String generateManageToken() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     /**

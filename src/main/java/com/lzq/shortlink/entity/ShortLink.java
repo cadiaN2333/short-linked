@@ -24,6 +24,9 @@ public class ShortLink {
     /** 原始长链接。 */
     private String originalUrl;
 
+    /** 创建者持有的管理凭证。 */
+    private String manageToken;
+
     /** 创建时间。 */
     private LocalDateTime createdAt;
 

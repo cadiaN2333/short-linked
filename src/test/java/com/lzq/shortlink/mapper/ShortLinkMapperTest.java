@@ -39,6 +39,7 @@ class ShortLinkMapperTest {
         ShortLink shortLink = new ShortLink();
         shortLink.setShortCode(shortCode);
         shortLink.setOriginalUrl("https://example.com/test");
+        shortLink.setManageToken(UUID.randomUUID().toString().replace("-", ""));
 
         int affectedRows = shortLinkMapper.insert(shortLink);
 
@@ -50,6 +51,7 @@ class ShortLinkMapperTest {
         assertNotNull(savedShortLink);
         assertEquals(shortCode, savedShortLink.getShortCode());
         assertEquals("https://example.com/test", savedShortLink.getOriginalUrl());
+        assertEquals(shortLink.getManageToken(), savedShortLink.getManageToken());
         assertNull(savedShortLink.getExpireAt());
     }
 }

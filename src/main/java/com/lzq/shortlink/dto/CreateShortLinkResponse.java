@@ -19,6 +19,9 @@ public class CreateShortLinkResponse {
     /** 原始长链接。 */
     private String originalUrl;
 
+    /** 查询统计使用的管理凭证，只在创建时返回一次。 */
+    private String manageToken;
+
     /** 过期时间，为 null 表示永久有效。 */
     private LocalDateTime expireAt;
 
