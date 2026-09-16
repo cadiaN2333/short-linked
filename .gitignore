@@ -1,5 +1,7 @@
 HELP.md
 target/
+# 项目内临时 Maven 本地仓库，避免误提交依赖缓存
+.m2-repository/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
