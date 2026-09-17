@@ -20,7 +20,6 @@ spring:
         retry:
           enabled: true
           initial-interval: 1000ms
-          max-attempts: 3
           max-interval: 3000ms
           multiplier: 1
 
@@ -32,3 +31,10 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+
+app:
+  security:
+    jwt:
+      issuer: https://short-link.local
+      access-token-ttl: 15m
+      refresh-token-ttl: 30d

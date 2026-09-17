@@ -8,6 +8,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import com.lzq.shortlink.auth.exception.EmailAlreadyRegisteredException;
+import com.lzq.shortlink.auth.exception.InvalidCredentialsException;
+import com.lzq.shortlink.auth.exception.InvalidRefreshTokenException;
 
 import java.time.LocalDateTime;
 
@@ -75,5 +78,38 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(status).body(response);
+    }
+
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmailAlreadyRegistered(
+            EmailAlreadyRegisteredException exception
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "EMAIL_ALREADY_REGISTERED",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception
+    ) {
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_CREDENTIALS",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception
+    ) {
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                "INVALID_REFRESH_TOKEN",
+                exception.getMessage()
+        );
     }
 }
