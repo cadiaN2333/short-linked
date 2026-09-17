@@ -11,6 +11,9 @@ import com.lzq.shortlink.entity.AppUser;
 import com.lzq.shortlink.entity.RefreshToken;
 import com.lzq.shortlink.mapper.AppUserMapper;
 import com.lzq.shortlink.mapper.RefreshTokenMapper;
+import com.lzq.shortlink.workspace.Workspace;
+import com.lzq.shortlink.workspace.WorkspaceMapper;
+import com.lzq.shortlink.workspace.WorkspaceMemberMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -32,6 +35,8 @@ public class AuthServiceImpl implements AuthService {
 
     private static final String ACTIVE = "ACTIVE";
 
+    private final WorkspaceMapper workspaceMapper;
+    private final WorkspaceMemberMapper workspaceMemberMapper;
     private final AppUserMapper appUserMapper;
     private final RefreshTokenMapper refreshTokenMapper;
     private final PasswordEncoder passwordEncoder;
@@ -44,19 +49,24 @@ public class AuthServiceImpl implements AuthService {
             RefreshTokenMapper refreshTokenMapper,
             PasswordEncoder passwordEncoder,
             JwtEncoder jwtEncoder,
-            JwtProperties jwtProperties
+            JwtProperties jwtProperties,
+            WorkspaceMapper workspaceMapper,
+            WorkspaceMemberMapper workspaceMemberMapper
     ) {
         this.appUserMapper = appUserMapper;
         this.refreshTokenMapper = refreshTokenMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtEncoder = jwtEncoder;
         this.jwtProperties = jwtProperties;
+        this.workspaceMapper = workspaceMapper;
+        this.workspaceMemberMapper = workspaceMemberMapper;
     }
 
     @Override
     @Transactional
     public AppUser register(RegisterRequest request) {
-        String email = normalizeEmail(request.getEmail());
+        String displayEmail = request.getEmail().trim();
+        String email = normalizeEmail(displayEmail);
 
         if (appUserMapper.selectByEmail(email) != null) {
             throw new EmailAlreadyRegisteredException();
@@ -74,6 +84,17 @@ public class AuthServiceImpl implements AuthService {
         } catch (DuplicateKeyException exception) {
             throw new EmailAlreadyRegisteredException();
         }
+
+        Workspace workspace = new Workspace();
+        workspace.setName(buildWorkspaceName(displayEmail));
+        workspace.setOwnerUserId(user.getId());
+        workspace.setStatus(ACTIVE);
+
+        workspaceMapper.insert(workspace);
+        workspaceMemberMapper.insertOwner(
+                workspace.getId(),
+                user.getId()
+        );
 
         return user;
     }
@@ -198,5 +219,19 @@ public class AuthServiceImpl implements AuthService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase();
+    }
+
+    private String buildWorkspaceName(String email) {
+        int separator = email.indexOf('@');
+
+        String prefix = separator > 0
+                ? email.substring(0, separator)
+                : "个人";
+
+        if (prefix.length() > 80) {
+            prefix = prefix.substring(0, 80);
+        }
+
+        return prefix + " 的工作空间";
     }
 }

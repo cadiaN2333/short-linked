@@ -6,14 +6,19 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.ReturnedMessage;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import lombok.extern.slf4j.Slf4j;
 /**
  * RabbitMQ 访问事件拓扑配置。
  */
 @Configuration
+@Slf4j
 public class RabbitMqConfig {
 
     /** 访问事件交换机。 */
@@ -96,5 +101,44 @@ public class RabbitMqConfig {
     @Bean
     public MessageConverter rabbitMessageConverter() {
         return new JacksonJsonMessageConverter();
+    }
+
+    /**
+     * 配置发布确认和不可路由消息回调。
+     *
+     * <p>回调只负责记录失败上下文，不把异常传播到短链接跳转主流程；
+     * 实习项目阶段先保留 RabbitMQ 控制台人工排查入口。</p>
+     */
+    @Bean
+    public RabbitTemplateCustomizer rabbitTemplateCustomizer() {
+        return rabbitTemplate -> {
+            rabbitTemplate.setMandatory(true);
+            rabbitTemplate.setConfirmCallback(
+                    (correlationData, acknowledged, cause) -> {
+                        if (!acknowledged) {
+                            String eventId = correlationData == null
+                                    ? "unknown"
+                                    : correlationData.getId();
+                            log.warn(
+                                    "RabbitMQ 发布确认失败，eventId={}, cause={}",
+                                    eventId,
+                                    cause
+                            );
+                        }
+                    }
+            );
+            rabbitTemplate.setReturnsCallback(this::logReturnedMessage);
+        };
+    }
+
+    /** 记录交换机无法路由的访问事件上下文。 */
+    private void logReturnedMessage(ReturnedMessage returnedMessage) {
+        log.warn(
+                "RabbitMQ 消息不可路由，exchange={}, routingKey={}, replyCode={}, replyText={}",
+                returnedMessage.getExchange(),
+                returnedMessage.getRoutingKey(),
+                returnedMessage.getReplyCode(),
+                returnedMessage.getReplyText()
+        );
     }
 }

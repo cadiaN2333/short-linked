@@ -13,6 +13,9 @@ public class CreateShortLinkResponse {
     /** 数据库主键。 */
     private Long id;
 
+    /** 所属工作空间主键。 */
+    private Long workspaceId;
+
     /** 生成后的短码。 */
     private String shortCode;
 

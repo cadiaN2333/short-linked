@@ -4,6 +4,7 @@ import com.lzq.shortlink.config.RabbitMqConfig;
 import com.lzq.shortlink.entity.ShortLink;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -41,7 +42,8 @@ public class VisitEventPublisher {
             rabbitTemplate.convertAndSend(
                     RabbitMqConfig.EVENT_EXCHANGE,
                     RabbitMqConfig.VISIT_ROUTING_KEY,
-                    visitEvent
+                    visitEvent,
+                    new CorrelationData(visitEvent.eventId())
             );
         } catch (AmqpException exception) {
             log.warn(

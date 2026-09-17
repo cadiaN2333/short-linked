@@ -14,6 +14,10 @@ spring:
     clean-disabled: true
 
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
     listener:
       simple:
         default-requeue-rejected: false

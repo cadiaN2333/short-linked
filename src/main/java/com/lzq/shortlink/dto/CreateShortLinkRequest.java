@@ -29,6 +29,18 @@ public class CreateShortLinkRequest {
     )
     private String originalUrl;
 
+    /** 可选自定义短码；为空时由系统生成随机短码。 */
+    @Size(
+            min = 3,
+            max = 16,
+            message = "自定义短码长度必须在 3 到 16 个字符之间"
+    )
+    @Pattern(
+            regexp = "^[0-9A-Za-z_-]+$",
+            message = "自定义短码只能包含数字、字母、下划线和连字符"
+    )
+    private String shortCode;
+
     @Future(message = "过期时间必须晚于当前时间")
     private LocalDateTime expireAt;
 }

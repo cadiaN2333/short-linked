@@ -11,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import com.lzq.shortlink.auth.exception.EmailAlreadyRegisteredException;
 import com.lzq.shortlink.auth.exception.InvalidCredentialsException;
 import com.lzq.shortlink.auth.exception.InvalidRefreshTokenException;
+import com.lzq.shortlink.workspace.WorkspaceAccessDeniedException;
 
 import java.time.LocalDateTime;
 
@@ -109,6 +110,72 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
                 "INVALID_REFRESH_TOKEN",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InvalidPaginationException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidPagination(
+            InvalidPaginationException exception
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_PAGINATION",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InvalidShortLinkStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidShortLinkStatus(
+            InvalidShortLinkStatusException exception
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_LINK_STATUS",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(InvalidShortLinkFilterException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidShortLinkFilter(
+            InvalidShortLinkFilterException exception
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_LINK_FILTER",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(ReservedShortCodeException.class)
+    public ResponseEntity<ApiErrorResponse> handleReservedShortCode(
+            ReservedShortCodeException exception
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "RESERVED_SHORT_CODE",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(ShortCodeAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleShortCodeAlreadyExists(
+            ShortCodeAlreadyExistsException exception
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                "SHORT_CODE_ALREADY_EXISTS",
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(WorkspaceAccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleWorkspaceAccessDenied(
+            WorkspaceAccessDeniedException exception
+    ) {
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                "WORKSPACE_ACCESS_DENIED",
                 exception.getMessage()
         );
     }

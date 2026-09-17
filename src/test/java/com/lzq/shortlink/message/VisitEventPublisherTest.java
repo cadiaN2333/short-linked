@@ -10,6 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -48,11 +49,14 @@ class VisitEventPublisherTest {
 
         ArgumentCaptor<VisitEvent> eventCaptor =
                 ArgumentCaptor.forClass(VisitEvent.class);
+        ArgumentCaptor<CorrelationData> correlationDataCaptor =
+                ArgumentCaptor.forClass(CorrelationData.class);
 
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitMqConfig.EVENT_EXCHANGE),
                 eq(RabbitMqConfig.VISIT_ROUTING_KEY),
-                eventCaptor.capture()
+                eventCaptor.capture(),
+                correlationDataCaptor.capture()
         );
 
         VisitEvent visitEvent = eventCaptor.getValue();
@@ -62,6 +66,7 @@ class VisitEventPublisherTest {
         assertEquals(1L, visitEvent.shortLinkId());
         assertEquals("abc12345", visitEvent.shortCode());
         assertNotNull(visitEvent.visitedAt());
+        assertEquals(visitEvent.eventId(), correlationDataCaptor.getValue().getId());
     }
 
     @Test
@@ -71,7 +76,8 @@ class VisitEventPublisherTest {
                 .convertAndSend(
                         anyString(),
                         anyString(),
-                        any(VisitEvent.class)
+                        any(VisitEvent.class),
+                        any(CorrelationData.class)
                 );
 
         assertDoesNotThrow(() -> visitEventPublisher.publish(shortLink));

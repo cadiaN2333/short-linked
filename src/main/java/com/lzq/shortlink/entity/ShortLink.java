@@ -24,6 +24,12 @@ public class ShortLink {
     /** 原始长链接。 */
     private String originalUrl;
 
+    /** 所属工作空间主键。 */
+    private Long workspaceId;
+
+    /** 生命周期状态：ACTIVE、DISABLED、DELETED。 */
+    private String status;
+
     /** 创建者持有的管理凭证。 */
     private String manageToken;
 
