@@ -52,7 +52,7 @@
 - 修改：`docs/访问统计与消息链路可靠性复盘.md`
 - 修改：`docs/短链接系统开发路线.md`
 
-- [ ] 写入实际完成项、未完成边界和用户需要执行的 RabbitMQ/Redis 联调命令。
-- [ ] 运行 `git diff --check`、相关单测和快速编译。
-- [ ] 检查 `git status` 与 `git diff`，只提交本轮相关文件。
-- [ ] 提交本地 Git；确认 `origin` 后尝试推送。若远端权限或网络失败，保留提交并给出用户可执行命令。
+- [x] 写入实际完成项、未完成边界和用户需要执行的 RabbitMQ/Redis 联调命令。
+- [x] 运行 `git diff --check`、相关单测和快速编译。
+- [x] 检查 `git status` 与 `git diff`，提交当前阶段项目文件；本地提交为 `84a7a23`。
+- [ ] 推送 `origin/main`；当前因 Windows Git 凭证缺失返回 `SEC_E_NO_CREDENTIALS`，用户登录凭证后重试。
