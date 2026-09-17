@@ -146,6 +146,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
         SET visit_count = visit_count + #{increment},
             last_visited_at = NOW()
         WHERE short_code = #{shortCode}
+          AND status <> 'DELETED'
         """)
     int incrementVisitStatistics(
             @Param("shortCode") String shortCode,

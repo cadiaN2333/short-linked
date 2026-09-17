@@ -24,18 +24,6 @@ public interface WorkspaceMapper {
     int insert(Workspace workspace);
 
     @Select("""
-            SELECT id, name, owner_user_id,
-                   status, created_at, updated_at
-            FROM workspace
-            WHERE owner_user_id = #{ownerUserId}
-              AND status = 'ACTIVE'
-            LIMIT 1
-            """)
-    Workspace selectActiveByOwnerUserId(
-            @Param("ownerUserId") Long ownerUserId
-    );
-
-    @Select("""
             SELECT w.id, w.name, w.owner_user_id,
                    w.status, w.created_at, w.updated_at
             FROM workspace w

@@ -115,7 +115,10 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setLastLoginAt(LocalDateTime.now());
-        appUserMapper.updateById(user);
+        appUserMapper.updateLastLoginAt(
+                user.getId(),
+                user.getLastLoginAt()
+        );
 
         return issueTokens(user);
     }

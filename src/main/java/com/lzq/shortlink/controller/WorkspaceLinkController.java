@@ -6,6 +6,7 @@ import com.lzq.shortlink.dto.ShortLinkListItemResponse;
 import com.lzq.shortlink.dto.ShortLinkPageResponse;
 import com.lzq.shortlink.dto.UpdateShortLinkStatusRequest;
 import com.lzq.shortlink.entity.ShortLink;
+import com.lzq.shortlink.config.ShortLinkProperties;
 import com.lzq.shortlink.exception.InvalidPaginationException;
 import com.lzq.shortlink.exception.ShortLinkNotFoundException;
 import com.lzq.shortlink.service.ShortLinkPageResult;
@@ -23,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.http.HttpStatus;
 
 /** 工作空间范围内的短链接创建接口。 */
@@ -35,13 +35,27 @@ public class WorkspaceLinkController {
 
     private final WorkspaceAccessService workspaceAccessService;
     private final ShortLinkService shortLinkService;
+    private final ShortLinkProperties shortLinkProperties;
 
     public WorkspaceLinkController(
             WorkspaceAccessService workspaceAccessService,
             ShortLinkService shortLinkService
     ) {
+        this(
+                workspaceAccessService,
+                shortLinkService,
+                new ShortLinkProperties()
+        );
+    }
+
+    public WorkspaceLinkController(
+            WorkspaceAccessService workspaceAccessService,
+            ShortLinkService shortLinkService,
+            ShortLinkProperties shortLinkProperties
+    ) {
         this.workspaceAccessService = workspaceAccessService;
         this.shortLinkService = shortLinkService;
+        this.shortLinkProperties = shortLinkProperties;
     }
 
     @PostMapping
@@ -228,13 +242,10 @@ public class WorkspaceLinkController {
     }
 
     private String buildShortUrl(String shortCode) {
-        try {
-            return ServletUriComponentsBuilder.fromCurrentContextPath()
-                    .path("/{shortCode}")
-                    .buildAndExpand(shortCode)
-                    .toUriString();
-        } catch (IllegalStateException exception) {
-            return "/" + shortCode;
+        String baseUrl = shortLinkProperties.getPublicBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = "http://localhost:8080";
         }
+        return baseUrl.replaceAll("/+$", "") + "/" + shortCode;
     }
 }

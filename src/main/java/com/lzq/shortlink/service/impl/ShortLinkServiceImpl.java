@@ -88,18 +88,6 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     }
 
 
-    /**
-     * 创建并保存短链接。
-     *
-     * @param originalUrl 原始长链接
-     * @param expireAt 过期时间，null 表示永久有效
-     * @return 已保存的短链接
-     */
-    @Override
-    public ShortLink createShortLink(String originalUrl, LocalDateTime expireAt) {
-        return createShortLink(null, originalUrl, expireAt);
-    }
-
     @Override
     public ShortLink createShortLink(
             Long workspaceId,

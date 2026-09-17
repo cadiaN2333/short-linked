@@ -37,6 +37,8 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 app:
+  short-link:
+    public-base-url: ${SHORT_LINK_PUBLIC_BASE_URL:http://localhost:8080}
   security:
     jwt:
       issuer: https://short-link.local

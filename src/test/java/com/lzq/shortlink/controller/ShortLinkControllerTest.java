@@ -1,8 +1,14 @@
 package com.lzq.shortlink.controller;
 
+import com.lzq.shortlink.auth.AuthService;
+import com.lzq.shortlink.auth.dto.AuthTokenResponse;
+import com.lzq.shortlink.auth.dto.LoginRequest;
+import com.lzq.shortlink.auth.dto.RegisterRequest;
 import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkDailyStatMapper;
 import com.lzq.shortlink.service.ShortLinkService;
+import com.lzq.shortlink.workspace.Workspace;
+import com.lzq.shortlink.workspace.WorkspaceMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -34,26 +41,43 @@ class ShortLinkControllerTest {
     @Autowired
     private ShortLinkDailyStatMapper shortLinkDailyStatMapper;
 
+    @Autowired
+    private AuthService authService;
+
+    @Autowired
+    private WorkspaceMapper workspaceMapper;
+
     @Test
     @Transactional
-    void shouldCreateShortLink() throws Exception {
+    void shouldRejectLegacyCreateEndpoint() throws Exception {
+        String email = "legacy-" + UUID.randomUUID() + "@example.com";
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setEmail(email);
+        registerRequest.setPassword("Demo@123456");
+        authService.register(registerRequest);
+
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail(email);
+        loginRequest.setPassword("Demo@123456");
+        AuthTokenResponse token = authService.login(loginRequest);
+
         mockMvc.perform(post("/api/links")
+                        .header("Authorization", "Bearer " + token.getAccessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "originalUrl": "https://example.com/articles/123"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.shortCode").isNotEmpty())
-                .andExpect(jsonPath("$.originalUrl")
-                        .value("https://example.com/articles/123"));
+                .andExpect(status().isNotFound());
     }
 
     @Test
     @Transactional
     void shouldReturnStatisticsOnlyWhenManageTokenMatches() throws Exception {
+        Long workspaceId = createTestWorkspace();
         ShortLink shortLink = shortLinkService.createShortLink(
+                workspaceId,
                 "https://example.com/statistics",
                 null
         );
@@ -74,7 +98,9 @@ class ShortLinkControllerTest {
     @Test
     @Transactional
     void shouldReturnSevenDayPvTrendByDefault() throws Exception {
+        Long workspaceId = createTestWorkspace();
         ShortLink shortLink = shortLinkService.createShortLink(
+                workspaceId,
                 "https://example.com/trend",
                 null
         );
@@ -114,7 +140,9 @@ class ShortLinkControllerTest {
     @Test
     @Transactional
     void shouldReturnPvForRequestedDateRange() throws Exception {
+        Long workspaceId = createTestWorkspace();
         ShortLink shortLink = shortLinkService.createShortLink(
+                workspaceId,
                 "https://example.com/trend-with-data",
                 null
         );
@@ -140,5 +168,13 @@ class ShortLinkControllerTest {
                 .andExpect(jsonPath("$.pvTrend[2].date")
                         .value("2026-09-16"))
                 .andExpect(jsonPath("$.pvTrend[2].pv").value(0));
+    }
+
+    private Long createTestWorkspace() {
+        Workspace workspace = new Workspace();
+        workspace.setName("兼容统计测试工作空间");
+        workspace.setStatus("ACTIVE");
+        workspaceMapper.insert(workspace);
+        return workspace.getId();
     }
 }

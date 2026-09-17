@@ -7,6 +7,9 @@ import java.util.Queue;
 
 import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkMapper;
+import com.lzq.shortlink.workspace.Workspace;
+import com.lzq.shortlink.workspace.WorkspaceMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,14 +30,32 @@ class ShortLinkServiceTest {
     private ShortLinkMapper shortLinkMapper;
 
     @Autowired
+    private WorkspaceMapper workspaceMapper;
+
+    @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    private Long workspaceId;
+
+    @BeforeEach
+    void setUp() {
+        Workspace workspace = new Workspace();
+        workspace.setName("短链接服务测试工作空间");
+        workspace.setStatus("ACTIVE");
+        workspaceMapper.insert(workspace);
+        workspaceId = workspace.getId();
+    }
 
     @Test
     @Transactional
     void shouldCreateShortLink() {
         String originalUrl = "https://example.com/articles/123";
 
-        ShortLink createdShortLink = shortLinkService.createShortLink(originalUrl, null);
+        ShortLink createdShortLink = shortLinkService.createShortLink(
+                workspaceId,
+                originalUrl,
+                null
+        );
 
         assertNotNull(createdShortLink.getId());
         assertNotNull(createdShortLink.getShortCode());
@@ -53,6 +74,7 @@ class ShortLinkServiceTest {
     @Transactional
     void shouldFindStatisticsOnlyWhenManageTokenMatches() {
         ShortLink createdShortLink = shortLinkService.createShortLink(
+                workspaceId,
                 "https://example.com/statistics",
                 null
         );
@@ -80,6 +102,7 @@ class ShortLinkServiceTest {
         String availableCode = "def67890";
 
         ShortLink existingShortLink = new ShortLink();
+        existingShortLink.setWorkspaceId(workspaceId);
         existingShortLink.setShortCode(conflictedCode);
         existingShortLink.setOriginalUrl("https://example.com/existing");
         existingShortLink.setManageToken("a".repeat(32));
@@ -94,6 +117,7 @@ class ShortLinkServiceTest {
         );
 
         ShortLink createdShortLink = fixedShortCodeService.createShortLink(
+                workspaceId,
                 "https://example.com/new-link",
                 null
         );

@@ -1,7 +1,5 @@
 package com.lzq.shortlink.controller;
 
-import com.lzq.shortlink.dto.CreateShortLinkResponse;
-import com.lzq.shortlink.dto.CreateShortLinkRequest;
 import com.lzq.shortlink.dto.DailyPvResponse;
 import com.lzq.shortlink.dto.ShortLinkStatisticsResponse;
 import com.lzq.shortlink.entity.ShortLink;
@@ -9,17 +7,13 @@ import com.lzq.shortlink.exception.InvalidStatisticsRangeException;
 import com.lzq.shortlink.exception.ShortLinkNotFoundException;
 import com.lzq.shortlink.service.ShortLinkAnalyticsService;
 import com.lzq.shortlink.service.ShortLinkService;
-import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -42,34 +36,6 @@ public class ShortLinkController {
     ) {
         this.shortLinkService = shortLinkService;
         this.analyticsService = analyticsService;
-    }
-
-    /**
-     * 创建短链接。
-     */
-    @PostMapping
-    public CreateShortLinkResponse createShortLink(
-            @Valid @RequestBody CreateShortLinkRequest request
-    ) {
-        ShortLink shortLink = shortLinkService.createShortLink(
-                request.getOriginalUrl(),
-                request.getExpireAt()
-        );
-
-        CreateShortLinkResponse response = new CreateShortLinkResponse();
-        response.setId(shortLink.getId());
-        response.setShortCode(shortLink.getShortCode());
-        response.setOriginalUrl(shortLink.getOriginalUrl());
-        response.setManageToken(shortLink.getManageToken());
-        response.setExpireAt(shortLink.getExpireAt());
-        response.setShortUrl(
-                ServletUriComponentsBuilder.fromCurrentContextPath()
-                        .path("/{shortCode}")
-                        .buildAndExpand(shortLink.getShortCode())
-                        .toUriString()
-        );
-
-        return response;
     }
 
     /**

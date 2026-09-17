@@ -7,6 +7,7 @@ import com.lzq.shortlink.workspace.Workspace;
 import com.lzq.shortlink.workspace.WorkspaceAccessDeniedException;
 import com.lzq.shortlink.workspace.WorkspaceAccessService;
 import com.lzq.shortlink.workspace.WorkspaceResponse;
+import com.lzq.shortlink.config.ShortLinkProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -93,6 +94,10 @@ class WorkspaceControllerTest {
 
         assertEquals(10L, response.getId());
         assertEquals(100L, response.getWorkspaceId());
+        assertEquals(
+                "http://localhost:8080/abc12345",
+                response.getShortUrl()
+        );
         verify(workspaceAccessService).requireAccessibleWorkspace(100L);
     }
 
@@ -133,6 +138,42 @@ class WorkspaceControllerTest {
                 "https://example.com/custom",
                 null,
                 "promo2026"
+        );
+    }
+
+    @Test
+    void shouldBuildShortUrlFromConfiguredPublicBaseUrl() {
+        when(workspaceAccessService.requireAccessibleWorkspace(100L))
+                .thenReturn(workspace(100L, "Demo 的工作空间"));
+        ShortLink shortLink = new ShortLink();
+        shortLink.setId(12L);
+        shortLink.setWorkspaceId(100L);
+        shortLink.setShortCode("cfg12345");
+        shortLink.setOriginalUrl("https://example.com/configured");
+        when(shortLinkService.createShortLink(
+                100L,
+                "https://example.com/configured",
+                null
+        )).thenReturn(shortLink);
+
+        ShortLinkProperties properties = new ShortLinkProperties();
+        properties.setPublicBaseUrl("https://public.example.com/");
+        WorkspaceLinkController controller = new WorkspaceLinkController(
+                workspaceAccessService,
+                shortLinkService,
+                properties
+        );
+
+        com.lzq.shortlink.dto.CreateShortLinkRequest request =
+                new com.lzq.shortlink.dto.CreateShortLinkRequest();
+        request.setOriginalUrl("https://example.com/configured");
+
+        com.lzq.shortlink.dto.CreateShortLinkResponse response =
+                controller.create(100L, request);
+
+        assertEquals(
+                "https://public.example.com/cfg12345",
+                response.getShortUrl()
         );
     }
 

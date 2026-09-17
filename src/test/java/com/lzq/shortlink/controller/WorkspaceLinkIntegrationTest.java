@@ -72,9 +72,9 @@ class WorkspaceLinkIntegrationTest {
         AuthTokenResponse tokenResponse = authService.login(loginRequest);
         accessToken = tokenResponse.getAccessToken();
 
-        Workspace workspace = workspaceMapper.selectActiveByOwnerUserId(
+        Workspace workspace = workspaceMapper.selectActiveByUserId(
                 user.getId()
-        );
+        ).get(0);
         workspaceId = workspace.getId();
     }
 
