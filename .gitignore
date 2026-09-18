@@ -35,3 +35,5 @@ build/
 .vscode/
 # 本机数据库配置，禁止提交
 /src/main/resources/application-local.yaml
+# 本地简历初稿可能包含个人信息，默认不提交
+/docs/Java后端实习简历初稿.md

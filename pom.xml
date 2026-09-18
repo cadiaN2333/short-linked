@@ -12,7 +12,7 @@
     <artifactId>short-link</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>short-link</name>
-    <description>short-link</description>
+    <description>面向工作空间的多租户短链接管理与访问分析平台</description>
     <url/>
     <licenses>
         <license/>
