@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -63,5 +64,69 @@ class VisitEventConsumerTest {
         visitEventConsumer.consume(visitEvent);
 
         verifyNoInteractions(shortLinkDailyStatMapper);
+    }
+
+    @Test
+    void shouldAggregateNewEventsByShortLinkAndDate() {
+        VisitEvent anotherVisit = new VisitEvent(
+                "b".repeat(32),
+                1L,
+                "abc12345",
+                LocalDateTime.of(2026, 9, 16, 20, 1)
+        );
+        when(shortLinkVisitEventMapper.insertIgnore(any())).thenReturn(1);
+
+        visitEventConsumer.consumeBatch(List.of(visitEvent, anotherVisit));
+
+        verify(shortLinkDailyStatMapper).incrementPvBy(
+                1L,
+                LocalDate.of(2026, 9, 16),
+                2L
+        );
+    }
+
+    @Test
+    void shouldExcludeDuplicateEventsFromBatchPv() {
+        VisitEvent anotherVisit = new VisitEvent(
+                "b".repeat(32),
+                1L,
+                "abc12345",
+                LocalDateTime.of(2026, 9, 16, 20, 1)
+        );
+        when(shortLinkVisitEventMapper.insertIgnore(any()))
+                .thenReturn(0)
+                .thenReturn(1);
+
+        visitEventConsumer.consumeBatch(List.of(visitEvent, anotherVisit));
+
+        verify(shortLinkDailyStatMapper).incrementPvBy(
+                1L,
+                LocalDate.of(2026, 9, 16),
+                1L
+        );
+    }
+
+    @Test
+    void shouldCreateSeparatePvBatchesForDifferentDates() {
+        VisitEvent nextDayVisit = new VisitEvent(
+                "b".repeat(32),
+                1L,
+                "abc12345",
+                LocalDateTime.of(2026, 9, 17, 0, 1)
+        );
+        when(shortLinkVisitEventMapper.insertIgnore(any())).thenReturn(1);
+
+        visitEventConsumer.consumeBatch(List.of(visitEvent, nextDayVisit));
+
+        verify(shortLinkDailyStatMapper).incrementPvBy(
+                1L,
+                LocalDate.of(2026, 9, 16),
+                1L
+        );
+        verify(shortLinkDailyStatMapper).incrementPvBy(
+                1L,
+                LocalDate.of(2026, 9, 17),
+                1L
+        );
     }
 }

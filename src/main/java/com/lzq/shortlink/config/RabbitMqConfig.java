@@ -7,8 +7,11 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.ReturnedMessage;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.amqp.autoconfigure.RabbitTemplateCustomizer;
+import org.springframework.boot.amqp.autoconfigure.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
@@ -38,6 +41,12 @@ public class RabbitMqConfig {
 
     /** 访问事件死信队列。 */
     public static final String VISIT_DEAD_LETTER_QUEUE = "short-link.visit.dlq";
+
+    /** 访问事件批量消费的最大批次。 */
+    private static final int VISIT_BATCH_SIZE = 100;
+
+    /** 批量消费等待新消息的最长时间，单位毫秒。 */
+    private static final long VISIT_BATCH_RECEIVE_TIMEOUT_MILLIS = 200L;
 
     /**
      * 声明访问事件交换机。
@@ -101,6 +110,29 @@ public class RabbitMqConfig {
     @Bean
     public MessageConverter rabbitMessageConverter() {
         return new JacksonJsonMessageConverter();
+    }
+
+    /**
+     * 配置访问事件批量监听容器。
+     *
+     * <p>先复用 Spring Boot 的 RabbitMQ 配置，再打开消费者批量模式；
+     * 并发数和预取数量继续由 application-local.yaml 控制。</p>
+     */
+    @Bean
+    public SimpleRabbitListenerContainerFactory
+    visitBatchListenerContainerFactory(
+            SimpleRabbitListenerContainerFactoryConfigurer configurer,
+            ConnectionFactory connectionFactory
+    ) {
+        SimpleRabbitListenerContainerFactory factory =
+                new SimpleRabbitListenerContainerFactory();
+        configurer.configure(factory, connectionFactory);
+        factory.setConsumerBatchEnabled(true);
+        factory.setBatchSize(VISIT_BATCH_SIZE);
+        factory.setReceiveTimeout(
+                VISIT_BATCH_RECEIVE_TIMEOUT_MILLIS
+        );
+        return factory;
     }
 
     /**

@@ -35,6 +35,20 @@ public interface ShortLinkDailyStatMapper
             @Param("statDate") LocalDate statDate
     );
 
+    /** 按批次增加指定短链接当天的 PV。 */
+    @Insert("""
+            INSERT INTO short_link_daily_stat (short_link_id, stat_date, pv)
+            VALUES (#{shortLinkId}, #{statDate}, #{increment})
+            ON DUPLICATE KEY UPDATE
+                pv = pv + #{increment},
+                updated_at = NOW()
+            """)
+    int incrementPvBy(
+            @Param("shortLinkId") Long shortLinkId,
+            @Param("statDate") LocalDate statDate,
+            @Param("increment") Long increment
+    );
+
     /** 查询指定短链接日期范围内已经落库的每日 PV。 */
     @Select("""
             SELECT stat_date, pv

@@ -13,6 +13,7 @@ import com.lzq.shortlink.service.ShortLinkPageResult;
 import com.lzq.shortlink.service.ShortLinkService;
 import com.lzq.shortlink.workspace.WorkspaceAccessService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +49,7 @@ public class WorkspaceLinkController {
         );
     }
 
+    @Autowired
     public WorkspaceLinkController(
             WorkspaceAccessService workspaceAccessService,
             ShortLinkService shortLinkService,

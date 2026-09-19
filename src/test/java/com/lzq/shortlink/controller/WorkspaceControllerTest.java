@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /** 工作空间和工作空间短链接接口测试。 */
 @ExtendWith(MockitoExtension.class)
@@ -30,6 +32,30 @@ class WorkspaceControllerTest {
 
     @Mock
     private ShortLinkService shortLinkService;
+
+    @Test
+    void shouldCreateControllerThroughSpringConstructorInjection() {
+        try (AnnotationConfigApplicationContext context =
+                     new AnnotationConfigApplicationContext()) {
+            context.getBeanFactory().registerSingleton(
+                    "workspaceAccessService",
+                    workspaceAccessService
+            );
+            context.getBeanFactory().registerSingleton(
+                    "shortLinkService",
+                    shortLinkService
+            );
+            context.getBeanFactory().registerSingleton(
+                    "shortLinkProperties",
+                    new ShortLinkProperties()
+            );
+            context.register(WorkspaceLinkController.class);
+
+            context.refresh();
+
+            assertNotNull(context.getBean(WorkspaceLinkController.class));
+        }
+    }
 
     @Test
     void shouldListCurrentUserWorkspaces() {
