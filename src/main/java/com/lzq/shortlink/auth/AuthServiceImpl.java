@@ -42,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtEncoder jwtEncoder;
     private final JwtProperties jwtProperties;
+    private final LoginAttemptRateLimiter loginAttemptRateLimiter;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthServiceImpl(
@@ -51,7 +52,8 @@ public class AuthServiceImpl implements AuthService {
             JwtEncoder jwtEncoder,
             JwtProperties jwtProperties,
             WorkspaceMapper workspaceMapper,
-            WorkspaceMemberMapper workspaceMemberMapper
+            WorkspaceMemberMapper workspaceMemberMapper,
+            LoginAttemptRateLimiter loginAttemptRateLimiter
     ) {
         this.appUserMapper = appUserMapper;
         this.refreshTokenMapper = refreshTokenMapper;
@@ -60,6 +62,7 @@ public class AuthServiceImpl implements AuthService {
         this.jwtProperties = jwtProperties;
         this.workspaceMapper = workspaceMapper;
         this.workspaceMemberMapper = workspaceMemberMapper;
+        this.loginAttemptRateLimiter = loginAttemptRateLimiter;
     }
 
     @Override
@@ -102,7 +105,17 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthTokenResponse login(LoginRequest request) {
+        return login(request, "unknown");
+    }
+
+    @Override
+    @Transactional
+    public AuthTokenResponse login(
+            LoginRequest request,
+            String sourceAddress
+    ) {
         String email = normalizeEmail(request.getEmail());
+        loginAttemptRateLimiter.checkAllowed(email, sourceAddress);
         AppUser user = appUserMapper.selectByEmail(email);
 
         if (user == null
@@ -111,8 +124,11 @@ public class AuthServiceImpl implements AuthService {
                 request.getPassword(),
                 user.getPasswordHash()
         )) {
+            loginAttemptRateLimiter.recordFailure(email, sourceAddress);
             throw new InvalidCredentialsException();
         }
+
+        loginAttemptRateLimiter.clearAccountFailures(email);
 
         user.setLastLoginAt(LocalDateTime.now());
         appUserMapper.updateLastLoginAt(
@@ -149,7 +165,11 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidRefreshTokenException();
         }
 
-        refreshTokenMapper.revokeById(storedToken.getId());
+        int revokedRows = refreshTokenMapper.revokeById(storedToken.getId());
+
+        if (revokedRows != 1) {
+            throw new InvalidRefreshTokenException();
+        }
 
         return issueTokens(user);
     }

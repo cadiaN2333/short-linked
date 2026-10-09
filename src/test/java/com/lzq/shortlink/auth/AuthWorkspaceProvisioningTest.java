@@ -46,6 +46,9 @@ class AuthWorkspaceProvisioningTest {
     @Mock
     private WorkspaceMemberMapper workspaceMemberMapper;
 
+    @Mock
+    private LoginAttemptRateLimiter loginAttemptRateLimiter;
+
     private AuthServiceImpl authService;
 
     @BeforeEach
@@ -57,7 +60,8 @@ class AuthWorkspaceProvisioningTest {
                 jwtEncoder,
                 jwtProperties,
                 workspaceMapper,
-                workspaceMemberMapper
+                workspaceMemberMapper,
+                loginAttemptRateLimiter
         );
     }
 

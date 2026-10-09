@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 
 /** 短链接创建必须绑定工作空间测试。 */
 @ExtendWith(MockitoExtension.class)
@@ -109,6 +110,62 @@ class ShortLinkWorkspaceServiceTest {
                 "1",
                 java.time.Duration.ofSeconds(30)
         );
+    }
+
+    @Test
+    void shouldUseLocalCacheAfterLoadingFromDatabase() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(any())).thenReturn(null);
+
+        ShortLink databaseShortLink = new ShortLink();
+        databaseShortLink.setId(30L);
+        databaseShortLink.setShortCode("local001");
+        databaseShortLink.setOriginalUrl("https://example.com/local");
+        databaseShortLink.setStatus("ACTIVE");
+        when(shortLinkMapper.selectOne(any())).thenReturn(databaseShortLink);
+
+        ShortLink first = shortLinkService.findAvailableShortLink("local001");
+        ShortLink second = shortLinkService.findAvailableShortLink("local001");
+
+        assertEquals(30L, first.getId());
+        assertEquals(30L, second.getId());
+        verify(shortLinkMapper, times(1)).selectOne(any());
+    }
+
+    @Test
+    void shouldEvictLocalCacheAfterChangingStatus() {
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(any())).thenReturn(null);
+
+        ShortLink shortLink = new ShortLink();
+        shortLink.setId(31L);
+        shortLink.setWorkspaceId(100L);
+        shortLink.setShortCode("local002");
+        shortLink.setOriginalUrl("https://example.com/local-status");
+        shortLink.setStatus("ACTIVE");
+
+        when(shortLinkMapper.selectOne(any()))
+                .thenReturn(shortLink)
+                .thenReturn(null);
+        when(shortLinkMapper.selectByWorkspaceIdAndId(100L, 31L))
+                .thenReturn(shortLink);
+        when(shortLinkMapper.updateStatusByWorkspaceIdAndId(
+                100L,
+                31L,
+                "DISABLED"
+        )).thenReturn(1);
+
+        assertEquals(
+                31L,
+                shortLinkService.findAvailableShortLink("local002").getId()
+        );
+
+        shortLinkService.changeShortLinkStatus(100L, 31L, "DISABLED");
+
+        org.junit.jupiter.api.Assertions.assertNull(
+                shortLinkService.findAvailableShortLink("local002")
+        );
+        verify(shortLinkMapper, times(2)).selectOne(any());
     }
 
     @Test

@@ -32,6 +32,20 @@ spring:
       host: localhost
       port: 6379
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+logging:
+  pattern:
+    level: "%5p [traceId:%X{traceId}]"
+
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
@@ -44,3 +58,7 @@ app:
       issuer: https://short-link.local
       access-token-ttl: 15m
       refresh-token-ttl: 30d
+    login-rate-limit:
+      account-failure-limit: 5
+      source-failure-limit: 20
+      failure-window: 15m

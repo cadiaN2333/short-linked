@@ -15,7 +15,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
     /** 按工作空间倒序分页查询短链接。 */
     @Select("""
         SELECT id, workspace_id, short_code, original_url,
-               manage_token, status, created_at, expire_at,
+               status, created_at, expire_at,
                visit_count, last_visited_at
         FROM short_link
         WHERE workspace_id = #{workspaceId}
@@ -33,7 +33,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
     @Select("""
         <script>
         SELECT id, workspace_id, short_code, original_url,
-               manage_token, status, created_at, expire_at,
+               status, created_at, expire_at,
                visit_count, last_visited_at
         FROM short_link
         WHERE workspace_id = #{workspaceId}
@@ -91,7 +91,7 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
     /** 按工作空间和主键查询短链接，避免越权读取其他工作空间数据。 */
     @Select("""
         SELECT id, workspace_id, short_code, original_url,
-               manage_token, status, created_at, expire_at,
+               status, created_at, expire_at,
                visit_count, last_visited_at
         FROM short_link
         WHERE workspace_id = #{workspaceId}

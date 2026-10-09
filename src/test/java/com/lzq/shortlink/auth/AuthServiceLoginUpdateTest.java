@@ -41,6 +41,9 @@ class AuthServiceLoginUpdateTest {
     @Mock
     private WorkspaceMemberMapper workspaceMemberMapper;
 
+    @Mock
+    private LoginAttemptRateLimiter loginAttemptRateLimiter;
+
     @Test
     void shouldUpdateOnlyLastLoginAtWhenLoginSucceeds() {
         AppUser user = new AppUser();
@@ -67,7 +70,8 @@ class AuthServiceLoginUpdateTest {
                 jwtEncoder,
                 jwtProperties,
                 workspaceMapper,
-                workspaceMemberMapper
+                workspaceMemberMapper,
+                loginAttemptRateLimiter
         );
 
         LoginRequest request = new LoginRequest();
@@ -78,5 +82,7 @@ class AuthServiceLoginUpdateTest {
 
         verify(appUserMapper, never()).updateById(any(AppUser.class));
         verify(appUserMapper).updateLastLoginAt(any(Long.class), any());
+        verify(loginAttemptRateLimiter)
+                .clearAccountFailures("demo@example.com");
     }
 }

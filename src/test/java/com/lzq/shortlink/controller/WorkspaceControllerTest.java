@@ -91,10 +91,6 @@ class WorkspaceControllerTest {
 
     @Test
     void shouldCreateShortLinkInsideAccessibleWorkspace() {
-        Workspace workspace = workspace(100L, "Demo 的工作空间");
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace);
-
         ShortLink shortLink = new ShortLink();
         shortLink.setId(10L);
         shortLink.setWorkspaceId(100L);
@@ -124,15 +120,11 @@ class WorkspaceControllerTest {
                 "http://localhost:8080/abc12345",
                 response.getShortUrl()
         );
-        verify(workspaceAccessService).requireAccessibleWorkspace(100L);
+        verify(workspaceAccessService).requireManager(100L);
     }
 
     @Test
     void shouldCreateShortLinkWithCustomShortCode() {
-        Workspace workspace = workspace(100L, "Demo 的工作空间");
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace);
-
         ShortLink shortLink = new ShortLink();
         shortLink.setId(11L);
         shortLink.setWorkspaceId(100L);
@@ -169,8 +161,6 @@ class WorkspaceControllerTest {
 
     @Test
     void shouldBuildShortUrlFromConfiguredPublicBaseUrl() {
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace(100L, "Demo 的工作空间"));
         ShortLink shortLink = new ShortLink();
         shortLink.setId(12L);
         shortLink.setWorkspaceId(100L);
@@ -320,8 +310,6 @@ class WorkspaceControllerTest {
 
     @Test
     void shouldUpdateShortLinkInsideWorkspace() {
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace(100L, "Demo 的工作空间"));
         ShortLink shortLink = new ShortLink();
         shortLink.setId(10L);
         shortLink.setWorkspaceId(100L);
@@ -348,12 +336,11 @@ class WorkspaceControllerTest {
 
         assertEquals("https://example.com/new", response.getOriginalUrl());
         assertEquals("ACTIVE", response.getStatus());
+        verify(workspaceAccessService).requireManager(100L);
     }
 
     @Test
     void shouldChangeShortLinkStatusInsideWorkspace() {
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace(100L, "Demo 的工作空间"));
         ShortLink shortLink = new ShortLink();
         shortLink.setId(10L);
         shortLink.setWorkspaceId(100L);
@@ -377,12 +364,11 @@ class WorkspaceControllerTest {
                 controller.changeStatus(100L, 10L, request);
 
         assertEquals("DISABLED", response.getStatus());
+        verify(workspaceAccessService).requireManager(100L);
     }
 
     @Test
     void shouldSoftDeleteShortLinkInsideWorkspace() {
-        when(workspaceAccessService.requireAccessibleWorkspace(100L))
-                .thenReturn(workspace(100L, "Demo 的工作空间"));
         when(shortLinkService.deleteShortLink(100L, 10L)).thenReturn(true);
 
         WorkspaceLinkController controller = new WorkspaceLinkController(
@@ -392,6 +378,7 @@ class WorkspaceControllerTest {
 
         controller.delete(100L, 10L);
 
+        verify(workspaceAccessService).requireManager(100L);
         verify(shortLinkService).deleteShortLink(100L, 10L);
     }
 

@@ -20,4 +20,7 @@ public class ApiErrorResponse {
 
     /** 错误发生时间。 */
     private final LocalDateTime timestamp;
+
+    /** 用于关联响应与服务端日志的请求追踪 ID。 */
+    private final String traceId;
 }

@@ -18,7 +18,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 @SpringBootTest
 class ShortLinkServiceTest {
@@ -61,38 +60,10 @@ class ShortLinkServiceTest {
         assertNotNull(createdShortLink.getShortCode());
         assertEquals(8, createdShortLink.getShortCode().length());
         assertEquals(originalUrl, createdShortLink.getOriginalUrl());
-        assertNotNull(createdShortLink.getManageToken());
-        assertEquals(32, createdShortLink.getManageToken().length());
-
         ShortLink savedShortLink = shortLinkMapper.selectById(createdShortLink.getId());
 
         assertNotNull(savedShortLink);
         assertEquals(createdShortLink.getShortCode(), savedShortLink.getShortCode());
-    }
-
-    @Test
-    @Transactional
-    void shouldFindStatisticsOnlyWhenManageTokenMatches() {
-        ShortLink createdShortLink = shortLinkService.createShortLink(
-                workspaceId,
-                "https://example.com/statistics",
-                null
-        );
-
-        ShortLink matchedShortLink = shortLinkService.findShortLinkForStatistics(
-                createdShortLink.getShortCode(),
-                createdShortLink.getManageToken()
-        );
-
-        assertNotNull(matchedShortLink);
-        assertEquals(createdShortLink.getId(), matchedShortLink.getId());
-
-        ShortLink unmatchedShortLink = shortLinkService.findShortLinkForStatistics(
-                createdShortLink.getShortCode(),
-                "invalid-token"
-        );
-
-        assertNull(unmatchedShortLink);
     }
 
     @Test
@@ -105,8 +76,6 @@ class ShortLinkServiceTest {
         existingShortLink.setWorkspaceId(workspaceId);
         existingShortLink.setShortCode(conflictedCode);
         existingShortLink.setOriginalUrl("https://example.com/existing");
-        existingShortLink.setManageToken("a".repeat(32));
-
         shortLinkMapper.insert(existingShortLink);
 
         ShortLinkService fixedShortCodeService = new FixedShortCodeService(

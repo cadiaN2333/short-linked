@@ -50,8 +50,6 @@ class ShortLinkMapperTest {
         shortLink.setWorkspaceId(workspace.getId());
         shortLink.setShortCode(shortCode);
         shortLink.setOriginalUrl("https://example.com/test");
-        shortLink.setManageToken(UUID.randomUUID().toString().replace("-", ""));
-
         int affectedRows = shortLinkMapper.insert(shortLink);
 
         assertEquals(1, affectedRows);
@@ -62,7 +60,6 @@ class ShortLinkMapperTest {
         assertNotNull(savedShortLink);
         assertEquals(shortCode, savedShortLink.getShortCode());
         assertEquals("https://example.com/test", savedShortLink.getOriginalUrl());
-        assertEquals(shortLink.getManageToken(), savedShortLink.getManageToken());
         assertNull(savedShortLink.getExpireAt());
     }
 }

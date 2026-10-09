@@ -65,7 +65,7 @@ public class WorkspaceLinkController {
             @PathVariable Long workspaceId,
             @Valid @RequestBody CreateShortLinkRequest request
     ) {
-        workspaceAccessService.requireAccessibleWorkspace(workspaceId);
+        workspaceAccessService.requireManager(workspaceId);
 
         ShortLink shortLink;
         if (request.getShortCode() == null
@@ -89,7 +89,6 @@ public class WorkspaceLinkController {
         response.setWorkspaceId(shortLink.getWorkspaceId());
         response.setShortCode(shortLink.getShortCode());
         response.setOriginalUrl(shortLink.getOriginalUrl());
-        response.setManageToken(shortLink.getManageToken());
         response.setExpireAt(shortLink.getExpireAt());
         response.setShortUrl(buildShortUrl(shortLink.getShortCode()));
         return response;
@@ -172,7 +171,7 @@ public class WorkspaceLinkController {
             @PathVariable Long linkId,
             @Valid @RequestBody CreateShortLinkRequest request
     ) {
-        workspaceAccessService.requireAccessibleWorkspace(workspaceId);
+        workspaceAccessService.requireManager(workspaceId);
         ShortLink shortLink = shortLinkService.updateShortLink(
                 workspaceId,
                 linkId,
@@ -192,7 +191,7 @@ public class WorkspaceLinkController {
             @PathVariable Long linkId,
             @Valid @RequestBody UpdateShortLinkStatusRequest request
     ) {
-        workspaceAccessService.requireAccessibleWorkspace(workspaceId);
+        workspaceAccessService.requireManager(workspaceId);
         ShortLink shortLink = shortLinkService.changeShortLinkStatus(
                 workspaceId,
                 linkId,
@@ -211,7 +210,7 @@ public class WorkspaceLinkController {
             @PathVariable Long workspaceId,
             @PathVariable Long linkId
     ) {
-        workspaceAccessService.requireAccessibleWorkspace(workspaceId);
+        workspaceAccessService.requireManager(workspaceId);
         if (!shortLinkService.deleteShortLink(workspaceId, linkId)) {
             throw new ShortLinkNotFoundException();
         }

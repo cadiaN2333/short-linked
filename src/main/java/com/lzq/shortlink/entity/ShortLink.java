@@ -30,9 +30,6 @@ public class ShortLink {
     /** 生命周期状态：ACTIVE、DISABLED、DELETED。 */
     private String status;
 
-    /** 创建者持有的管理凭证。 */
-    private String manageToken;
-
     /** 创建时间。 */
     private LocalDateTime createdAt;
 

@@ -29,4 +29,20 @@ class FlywayMigrationScriptTest {
                 "create table if not exists short_link_daily_stat"
         ));
     }
+
+    @Test
+    void shouldRemoveUnusedManagementTokenColumnInVersionSix() throws IOException {
+        String script;
+        try (InputStream input = getClass().getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/V6__remove_unused_manage_token.sql"
+                )) {
+            assertTrue(input != null, "移除管理凭证的 V6 迁移脚本不存在");
+            script = new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                    .toLowerCase();
+        }
+
+        assertTrue(script.contains("drop index uk_manage_token"));
+        assertTrue(script.contains("drop column manage_token"));
+    }
 }

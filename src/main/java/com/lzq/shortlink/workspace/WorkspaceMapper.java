@@ -30,6 +30,7 @@ public interface WorkspaceMapper {
             INNER JOIN workspace_member wm
                     ON wm.workspace_id = w.id
             WHERE wm.user_id = #{userId}
+              AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER')
               AND w.status = 'ACTIVE'
             ORDER BY w.id
             """)
@@ -45,6 +46,7 @@ public interface WorkspaceMapper {
                     ON wm.workspace_id = w.id
             WHERE w.id = #{workspaceId}
               AND wm.user_id = #{userId}
+              AND wm.role IN ('OWNER', 'ADMIN', 'MEMBER')
               AND w.status = 'ACTIVE'
             LIMIT 1
             """)

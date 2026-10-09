@@ -19,6 +19,6 @@ class FlywayContextTest {
     @Test
     void shouldExposeSuccessfulFlywayMigration() {
         assertNotNull(flyway.info().current());
-        assertEquals("4", flyway.info().current().getVersion().toString());
+        assertEquals("6", flyway.info().current().getVersion().toString());
     }
 }

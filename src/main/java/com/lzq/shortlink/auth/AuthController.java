@@ -6,6 +6,7 @@ import com.lzq.shortlink.auth.dto.RefreshTokenRequest;
 import com.lzq.shortlink.auth.dto.RegisterRequest;
 import com.lzq.shortlink.auth.dto.RegisterResponse;
 import com.lzq.shortlink.entity.AppUser;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -35,9 +36,10 @@ public class AuthController {
 
     @PostMapping("/login")
     public AuthTokenResponse login(
-            @Valid @RequestBody LoginRequest request
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest servletRequest
     ) {
-        return authService.login(request);
+        return authService.login(request, servletRequest.getRemoteAddr());
     }
 
     @PostMapping("/refresh")

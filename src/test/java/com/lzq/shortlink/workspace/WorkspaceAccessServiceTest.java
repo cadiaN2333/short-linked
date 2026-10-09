@@ -22,11 +22,17 @@ class WorkspaceAccessServiceTest {
     @Mock
     private WorkspaceMapper workspaceMapper;
 
+    @Mock
+    private WorkspaceMemberMapper workspaceMemberMapper;
+
     private WorkspaceAccessService workspaceAccessService;
 
     @BeforeEach
     void setUp() {
-        workspaceAccessService = new WorkspaceAccessService(workspaceMapper);
+        workspaceAccessService = new WorkspaceAccessService(
+                workspaceMapper,
+                workspaceMemberMapper
+        );
     }
 
     @AfterEach
@@ -42,6 +48,8 @@ class WorkspaceAccessServiceTest {
         workspace.setId(100L);
         when(workspaceMapper.selectAccessibleById(100L, 42L))
                 .thenReturn(workspace);
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("MEMBER");
 
         Workspace result = workspaceAccessService
                 .requireAccessibleWorkspace(100L);
@@ -64,6 +72,71 @@ class WorkspaceAccessServiceTest {
     @Test
     void shouldRejectInvalidJwtSubject() {
         authenticateAs("not-a-number");
+
+        assertThrows(
+                WorkspaceAccessDeniedException.class,
+                () -> workspaceAccessService.requireAccessibleWorkspace(100L)
+        );
+    }
+
+    @Test
+    void shouldAllowOwnerAndAdminToManageWorkspace() {
+        authenticateAs("42");
+        Workspace workspace = new Workspace();
+        workspace.setId(100L);
+        when(workspaceMapper.selectAccessibleById(100L, 42L))
+                .thenReturn(workspace);
+
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("OWNER");
+        workspaceAccessService.requireManager(100L);
+
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("ADMIN");
+        workspaceAccessService.requireManager(100L);
+    }
+
+    @Test
+    void shouldRejectMemberFromManagingWorkspace() {
+        authenticateAs("42");
+        Workspace workspace = new Workspace();
+        workspace.setId(100L);
+        when(workspaceMapper.selectAccessibleById(100L, 42L))
+                .thenReturn(workspace);
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("MEMBER");
+
+        assertThrows(
+                WorkspaceAccessDeniedException.class,
+                () -> workspaceAccessService.requireManager(100L)
+        );
+    }
+
+    @Test
+    void shouldRejectUnknownMemberRoleByDefault() {
+        authenticateAs("42");
+        Workspace workspace = new Workspace();
+        workspace.setId(100L);
+        when(workspaceMapper.selectAccessibleById(100L, 42L))
+                .thenReturn(workspace);
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("CUSTOM");
+
+        assertThrows(
+                WorkspaceAccessDeniedException.class,
+                () -> workspaceAccessService.requireManager(100L)
+        );
+    }
+
+    @Test
+    void shouldRejectUnknownRoleFromAllWorkspaceAccess() {
+        authenticateAs("42");
+        Workspace workspace = new Workspace();
+        workspace.setId(100L);
+        when(workspaceMapper.selectAccessibleById(100L, 42L))
+                .thenReturn(workspace);
+        when(workspaceMemberMapper.selectRoleByWorkspaceAndUser(100L, 42L))
+                .thenReturn("CUSTOM");
 
         assertThrows(
                 WorkspaceAccessDeniedException.class,
