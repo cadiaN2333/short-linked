@@ -152,4 +152,27 @@ public interface ShortLinkMapper extends BaseMapper<ShortLink> {
             @Param("shortCode") String shortCode,
             @Param("increment") long increment
     );
+
+    /** 查询短码字段的实际数据库比较规则。 */
+    @Select("""
+        SELECT COLLATION_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'short_link'
+          AND COLUMN_NAME = 'short_code'
+        """)
+    String selectShortCodeCollation();
+
+    /** 按主键游标加载全部历史短码，包括禁用、过期和已删除记录。 */
+    @Select("""
+        SELECT id, short_code
+        FROM short_link
+        WHERE id > #{lastId}
+        ORDER BY id ASC
+        LIMIT #{limit}
+        """)
+    List<ShortLink> selectShortCodesAfterId(
+            @Param("lastId") long lastId,
+            @Param("limit") int limit
+    );
 }

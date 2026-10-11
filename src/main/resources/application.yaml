@@ -53,6 +53,12 @@ mybatis-plus:
 app:
   short-link:
     public-base-url: ${SHORT_LINK_PUBLIC_BASE_URL:http://localhost:8080}
+    bloom:
+      # 完成短码比较规则核实前保持关闭；开启后仍须完整初始化成功。
+      enabled: false
+      expected-insertions: 1000000
+      false-positive-probability: 0.001
+      load-batch-size: 1000
   security:
     jwt:
       issuer: https://short-link.local

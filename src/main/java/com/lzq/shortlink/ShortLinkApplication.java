@@ -6,10 +6,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import com.lzq.shortlink.config.ShortLinkProperties;
+import com.lzq.shortlink.config.ShortLinkBloomProperties;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties(ShortLinkProperties.class)
+@EnableConfigurationProperties({
+        ShortLinkProperties.class,
+        ShortLinkBloomProperties.class
+})
 @MapperScan({
         "com.lzq.shortlink.mapper",
         "com.lzq.shortlink.workspace"
