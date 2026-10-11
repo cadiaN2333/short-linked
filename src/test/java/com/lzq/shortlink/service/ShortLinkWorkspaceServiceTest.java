@@ -54,14 +54,10 @@ class ShortLinkWorkspaceServiceTest {
     @Test
     void shouldNotReturnDisabledShortLinkFromCache() {
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get("short-link:missing:abc12345"))
+        when(valueOperations.get("short-link:cache-missing:v2:abc12345"))
                 .thenReturn(null);
-        when(valueOperations.get("short-link:abc12345"))
-                .thenReturn("https://example.com");
-        when(valueOperations.get("short-link:id:abc12345"))
-                .thenReturn("20");
-        when(valueOperations.get("short-link:status:abc12345"))
-                .thenReturn("DISABLED");
+        when(valueOperations.get("short-link:cache:v2:abc12345"))
+                .thenReturn("{\"version\":2,\"id\":20,\"shortCode\":\"abc12345\",\"originalUrl\":\"https://example.com\",\"status\":\"DISABLED\",\"expireAt\":\"\"}");
 
         ShortLink result = shortLinkService.findAvailableShortLink("abc12345");
 
@@ -72,7 +68,7 @@ class ShortLinkWorkspaceServiceTest {
     @Test
     void shouldEvictCorruptedCachedIdAndFallbackToDatabase() {
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get("short-link:missing:abc12345"))
+        when(valueOperations.get("short-link:cache-missing:v2:abc12345"))
                 .thenReturn(null);
         ShortLink databaseShortLink = new ShortLink();
         databaseShortLink.setId(20L);
@@ -80,21 +76,16 @@ class ShortLinkWorkspaceServiceTest {
         databaseShortLink.setOriginalUrl("https://example.com");
         databaseShortLink.setStatus("ACTIVE");
 
-        when(valueOperations.get("short-link:abc12345"))
-                .thenReturn("https://example.com");
-        when(valueOperations.get("short-link:id:abc12345"))
-                .thenReturn("not-a-number");
-        when(valueOperations.get("short-link:status:abc12345"))
-                .thenReturn("ACTIVE");
+        when(valueOperations.get("short-link:cache:v2:abc12345"))
+                .thenReturn("{\"version\":2,\"id\":\"not-a-number\",\"shortCode\":\"abc12345\",\"originalUrl\":\"https://example.com\",\"status\":\"ACTIVE\",\"expireAt\":\"\"}");
         when(shortLinkMapper.selectOne(any()))
                 .thenReturn(databaseShortLink);
 
         ShortLink result = shortLinkService.findAvailableShortLink("abc12345");
 
         assertEquals(20L, result.getId());
-        verify(stringRedisTemplate).delete("short-link:abc12345");
-        verify(stringRedisTemplate).delete("short-link:id:abc12345");
-        verify(stringRedisTemplate).delete("short-link:status:abc12345");
+        verify(stringRedisTemplate).delete("short-link:cache:v2:abc12345");
+        verify(stringRedisTemplate, org.mockito.Mockito.atLeastOnce()).delete("short-link:cache-missing:v2:abc12345");
     }
 
     @Test
@@ -106,7 +97,7 @@ class ShortLinkWorkspaceServiceTest {
 
         org.junit.jupiter.api.Assertions.assertNull(result);
         verify(valueOperations).set(
-                "short-link:missing:missing01",
+                "short-link:cache-missing:v2:missing01",
                 "1",
                 java.time.Duration.ofSeconds(30)
         );
@@ -316,6 +307,7 @@ class ShortLinkWorkspaceServiceTest {
         ShortLink shortLink = new ShortLink();
         shortLink.setId(20L);
         shortLink.setWorkspaceId(100L);
+        shortLink.setShortCode("edit001");
         shortLink.setOriginalUrl("https://example.com/old");
 
         when(shortLinkMapper.selectByWorkspaceIdAndId(100L, 20L))
@@ -351,6 +343,7 @@ class ShortLinkWorkspaceServiceTest {
     void shouldChangeStatusInsideWorkspace() {
         ShortLink shortLink = new ShortLink();
         shortLink.setId(20L);
+        shortLink.setShortCode("status001");
         shortLink.setWorkspaceId(100L);
         shortLink.setStatus("ACTIVE");
 

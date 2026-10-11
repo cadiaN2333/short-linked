@@ -4,6 +4,7 @@ import com.lzq.shortlink.validation.TargetUrlValidator;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.lzq.shortlink.cache.ShortLinkLocalCacheValue;
+import com.lzq.shortlink.cache.ShortLinkRedirectCache;
 import com.lzq.shortlink.entity.ShortLink;
 import com.lzq.shortlink.mapper.ShortLinkMapper;
 import com.lzq.shortlink.message.VisitEventPublisher;
@@ -18,10 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.stereotype.Service;
+import com.lzq.shortlink.cache.ShortCodeBloomFilter;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -62,24 +63,7 @@ public class ShortLinkServiceImpl implements ShortLinkService {
     // 最大重试次数
     private static final int MAX_RETRY_COUNT = 3;
 
-    private static final String REDIS_KEY_PREFIX = "short-link:";
-
     private static final String VISIT_COUNT_KEY_PREFIX = "short-link:visit:";
-
-    private static final String SHORT_LINK_ID_KEY_PREFIX = "short-link:id:";
-
-    private static final String SHORT_LINK_STATUS_KEY_PREFIX = "short-link:status:";
-
-    private static final String SHORT_LINK_EXPIRE_AT_KEY_PREFIX =
-            "short-link:expire-at:";
-
-    private static final String MISSING_SHORT_LINK_KEY_PREFIX = "short-link:missing:";
-
-    private static final String NEGATIVE_CACHE_VALUE = "1";
-
-    private static final String PERMANENT_EXPIRE_AT_VALUE = "";
-
-    private static final Duration NEGATIVE_CACHE_TTL = Duration.ofSeconds(30);
 
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -87,10 +71,10 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
     private final VisitEventPublisher visitEventPublisher;
 
-    private final Cache<String, ShortLinkLocalCacheValue> localCache;
+    // 短码布隆过滤器，用于快速检查短码是否存在
+    private final ShortCodeBloomFilter shortCodeBloomFilter;
 
-    // 缓存缺失的短链接，避免重复查询数据库
-    private final Cache<String, Boolean> localMissingCache;
+    private final ShortLinkRedirectCache redirectCache;
 
     @Autowired
     public ShortLinkServiceImpl(
@@ -100,13 +84,14 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             @Qualifier("shortLinkLocalCache")
             Cache<String, ShortLinkLocalCacheValue> localCache,
             @Qualifier("shortLinkLocalMissingCache")
-            Cache<String, Boolean> localMissingCache
+            Cache<String, Boolean> localMissingCache,
+            ShortCodeBloomFilter shortCodeBloomFilter
     ) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.shortLinkMapper = shortLinkMapper;
         this.visitEventPublisher = visitEventPublisher;
-        this.localCache = localCache;
-        this.localMissingCache = localMissingCache;
+        this.shortCodeBloomFilter = shortCodeBloomFilter;
+        this.redirectCache = new ShortLinkRedirectCache(stringRedisTemplate, localCache, localMissingCache);
     }
 
     /** 使用默认本地缓存，保留给单元测试和兼容调用。 */
@@ -132,6 +117,24 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         );
     }
 
+    /** 保留原有手动构造方式，默认关闭布隆过滤器。 */
+    public ShortLinkServiceImpl(
+            StringRedisTemplate stringRedisTemplate,
+            ShortLinkMapper shortLinkMapper,
+            VisitEventPublisher visitEventPublisher,
+            Cache<String, ShortLinkLocalCacheValue> localCache,
+            Cache<String, Boolean> localMissingCache
+    ) {
+        this(
+                stringRedisTemplate,
+                shortLinkMapper,
+                visitEventPublisher,
+                localCache,
+                localMissingCache,
+                ShortCodeBloomFilter.disabled()
+        );
+    }
+
 
     @Override
     public ShortLink createShortLink(
@@ -154,6 +157,20 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             LocalDateTime expireAt,
             String requestedShortCode
     ) {
+        return shortCodeBloomFilter.duringCreation(
+                () -> doCreateShortLink(
+                        workspaceId, originalUrl, expireAt, requestedShortCode
+                )
+        );
+    }
+
+    /** 创建与初始化协调，输入校验仍先于候选短码登记。 */
+    private ShortLink doCreateShortLink(
+            Long workspaceId,
+            String originalUrl,
+            LocalDateTime expireAt,
+            String requestedShortCode
+    ) {
         if (workspaceId == null) {
             throw new IllegalArgumentException("工作空间不能为空");
         }
@@ -170,8 +187,8 @@ public class ShortLinkServiceImpl implements ShortLinkService {
                     normalizedShortCode
             );
             try {
-                shortLinkMapper.insert(shortLink);
-                evictShortLinkCache(shortLink.getShortCode());
+                shortCodeBloomFilter.beforeInsert(shortLink.getShortCode());
+                insertAndEvict(shortLink);
                 return shortLink;
             } catch (DuplicateKeyException exception) {
                 throw new ShortCodeAlreadyExistsException(
@@ -189,8 +206,8 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             );
 
             try {
-                shortLinkMapper.insert(shortLink);
-                evictShortLinkCache(shortLink.getShortCode());
+                shortCodeBloomFilter.beforeInsert(shortLink.getShortCode());
+                insertAndEvict(shortLink);
                 log.info(
                         "短链接创建成功，shortCode={}，expireAt={}",
                         shortLink.getShortCode(),
@@ -205,6 +222,14 @@ public class ShortLinkServiceImpl implements ShortLinkService {
         }
 
         throw new IllegalStateException("短码生成失败，请稍后重试");
+    }
+
+    /** 新建与同短码负缓存回填互斥；事务内创建在完成回调中再次清理。 */
+    private void insertAndEvict(ShortLink shortLink) {
+        redirectCache.mutate(shortLink.getShortCode(), () -> {
+            shortLinkMapper.insert(shortLink);
+            return null;
+        });
     }
 
     /** 组装待持久化的短链接实体。 */
@@ -366,15 +391,12 @@ public class ShortLinkServiceImpl implements ShortLinkService {
 
         String normalizedUrl = TargetUrlValidator.normalize(originalUrl);
 
-        shortLinkMapper.updateContentByWorkspaceIdAndId(
-                workspaceId,
-                linkId,
-                normalizedUrl,
-                expireAt
-        );
-
-        evictShortLinkCache(existing.getShortCode());
-        return shortLinkMapper.selectByWorkspaceIdAndId(workspaceId, linkId);
+        return redirectCache.mutate(existing.getShortCode(), () -> {
+            shortLinkMapper.updateContentByWorkspaceIdAndId(
+                    workspaceId, linkId, normalizedUrl, expireAt
+            );
+            return shortLinkMapper.selectByWorkspaceIdAndId(workspaceId, linkId);
+        });
     }
 
     @Override
@@ -395,13 +417,10 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             return null;
         }
 
-        shortLinkMapper.updateStatusByWorkspaceIdAndId(
-                workspaceId,
-                linkId,
-                status
-        );
-        evictShortLinkCache(existing.getShortCode());
-        return shortLinkMapper.selectByWorkspaceIdAndId(workspaceId, linkId);
+        return redirectCache.mutate(existing.getShortCode(), () -> {
+            shortLinkMapper.updateStatusByWorkspaceIdAndId(workspaceId, linkId, status);
+            return shortLinkMapper.selectByWorkspaceIdAndId(workspaceId, linkId);
+        });
     }
 
     @Override
@@ -411,16 +430,12 @@ public class ShortLinkServiceImpl implements ShortLinkService {
             return false;
         }
 
-        int affectedRows = shortLinkMapper.updateStatusByWorkspaceIdAndId(
-                workspaceId,
-                linkId,
-                STATUS_DELETED
-        );
-        if (affectedRows > 0) {
-            evictShortLinkCache(existing.getShortCode());
-            return true;
-        }
-        return false;
+        return redirectCache.mutate(existing.getShortCode(), () -> {
+            int affectedRows = shortLinkMapper.updateStatusByWorkspaceIdAndId(
+                    workspaceId, linkId, STATUS_DELETED
+            );
+            return affectedRows > 0;
+        });
     }
 
     /**
@@ -431,256 +446,36 @@ public class ShortLinkServiceImpl implements ShortLinkService {
      */
     @Override
     public ShortLink findAvailableShortLink(String shortCode) {
-        if (Boolean.TRUE.equals(localMissingCache.getIfPresent(shortCode))) {
-            log.debug("短链接本地负缓存命中，shortCode={}", shortCode);
-            return null;
+        if (shortCode == null || !shortCode.matches("[0-9A-Za-z_-]{3,16}")) return null;
+        // 事务读取也可能等待数据库锁，不在事务内持缓存锁执行数据库查询。
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            return findAvailableLocked(shortCode);
         }
+        return redirectCache.locked(shortCode, () -> findAvailableLocked(shortCode));
+    }
 
-        ShortLinkLocalCacheValue localValue = localCache.getIfPresent(shortCode);
-        if (localValue != null) {
-            if (!STATUS_ACTIVE.equals(localValue.status())) {
-                return null;
-            }
-            if (!localValue.expiredAt(LocalDateTime.now())) {
-                log.debug("短链接本地缓存命中，shortCode={}", shortCode);
-                return localValue.toShortLink();
-            }
-            localCache.invalidate(shortCode);
+    private ShortLink findAvailableLocked(String shortCode) {
+        if (redirectCache.missing(shortCode)) return null;
+        ShortLink cached = redirectCache.get(shortCode);
+        if (cached != null) {
+            return STATUS_ACTIVE.equals(cached.getStatus()) ? cached : null;
         }
-
-        String cacheKey = REDIS_KEY_PREFIX + shortCode;
-        String shortLinkIdCacheKey = SHORT_LINK_ID_KEY_PREFIX + shortCode;
-        String shortLinkStatusCacheKey = SHORT_LINK_STATUS_KEY_PREFIX + shortCode;
-        String shortLinkExpireAtCacheKey =
-                SHORT_LINK_EXPIRE_AT_KEY_PREFIX + shortCode;
-        String missingShortLinkCacheKey = MISSING_SHORT_LINK_KEY_PREFIX + shortCode;
-
-        // 1. 先查 Redis
-        String originalUrl = null;
-        String shortLinkId = null;
-        String status = null;
-        String expireAtValue = null;
-        String negativeCacheValue = null;
-
-        try {
-            negativeCacheValue = stringRedisTemplate.opsForValue()
-                    .get(missingShortLinkCacheKey);
-            if (NEGATIVE_CACHE_VALUE.equals(negativeCacheValue)) {
-                log.debug("短链接负缓存命中，shortCode={}", shortCode);
-                return null;
-            }
-            originalUrl = stringRedisTemplate.opsForValue().get(cacheKey);
-            shortLinkId = stringRedisTemplate.opsForValue()
-                    .get(shortLinkIdCacheKey);
-            status = stringRedisTemplate.opsForValue()
-                    .get(shortLinkStatusCacheKey);
-            expireAtValue = stringRedisTemplate.opsForValue()
-                    .get(shortLinkExpireAtCacheKey);
-        } catch (RedisConnectionFailureException exception) {
-            log.warn(
-                    "Redis 读取失败，已降级查询 MySQL，shortCode={}",
-                    shortCode,
-                    exception
-            );
-        }
-
-        if (originalUrl != null && shortLinkId != null && status != null) {
-            log.debug("短链接缓存命中，shortCode={}", shortCode);
-            if (!STATUS_ACTIVE.equals(status)) {
-                return null;
-            }
-
-            try {
-                LocalDateTime expireAt = parseExpireAt(expireAtValue);
-                if (expireAt != null
-                        && !LocalDateTime.now().isBefore(expireAt)) {
-                    evictShortLinkCache(shortCode);
-                } else {
-                    ShortLinkLocalCacheValue cachedValue =
-                            new ShortLinkLocalCacheValue(
-                                    Long.parseLong(shortLinkId),
-                                    shortCode,
-                                    originalUrl,
-                                    status,
-                                    expireAt
-                            );
-                    // 兼容旧 Redis 数据；没有过期时间时不提升到 L1。
-                    if (expireAtValue != null) {
-                        localCache.put(shortCode, cachedValue);
-                    }
-                    return cachedValue.toShortLink();
-                }
-            } catch (NumberFormatException exception) {
-                log.warn(
-                        "短链接缓存 ID 格式非法，清理缓存并回源 MySQL，shortCode={}, value={}",
-                        shortCode,
-                        shortLinkId
-                );
-                evictShortLinkCache(shortCode);
-            } catch (DateTimeParseException exception) {
-                log.warn(
-                        "短链接缓存过期时间格式非法，清理缓存并回源 MySQL，shortCode={}, value={}",
-                        shortCode,
-                        expireAtValue
-                );
-                evictShortLinkCache(shortCode);
-            }
-        }
-
-        // 2. Redis 未命中，再查 MySQL
+        if (!shortCodeBloomFilter.mightContain(shortCode)) return null;
         log.debug("短链接缓存未命中，查询数据库，shortCode={}", shortCode);
-        ShortLink shortLink = shortLinkMapper.selectOne(
+        ShortLink row = shortLinkMapper.selectOne(
                 new LambdaQueryWrapper<ShortLink>()
                         .eq(ShortLink::getShortCode, shortCode)
                         .eq(ShortLink::getStatus, STATUS_ACTIVE)
         );
-
-        if (shortLink == null) {
-            cacheMissingShortLink(shortCode);
+        // 迁移前或数据库比较规则异常时，也不能让错误大小写命中。
+        if (row == null || !shortCode.equals(row.getShortCode())
+                || !STATUS_ACTIVE.equals(row.getStatus())
+                || (row.getExpireAt() != null && !LocalDateTime.now().isBefore(row.getExpireAt()))) {
+            redirectCache.putMissing(shortCode);
             return null;
         }
-
-        // 已过期：不跳转，也不写入缓存
-        Duration remaining = null;
-
-        if (shortLink.getExpireAt() != null) {
-            remaining = Duration.between(
-                    LocalDateTime.now(),
-                    shortLink.getExpireAt()
-            );
-
-            if (remaining.isZero() || remaining.isNegative()) {
-                cacheMissingShortLink(shortCode);
-                return null;
-            }
-        }
-
-        try {
-            String expireAt = shortLink.getExpireAt() == null
-                    ? PERMANENT_EXPIRE_AT_VALUE
-                    : shortLink.getExpireAt().toString();
-            if (remaining != null) {
-                // 有过期时间的链接：Redis TTL 与链接剩余有效期一致
-                stringRedisTemplate.opsForValue().set(
-                        cacheKey,
-                        shortLink.getOriginalUrl(),
-                        remaining
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkIdCacheKey,
-                        String.valueOf(shortLink.getId()),
-                        remaining
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkStatusCacheKey,
-                        shortLink.getStatus(),
-                        remaining
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkExpireAtCacheKey,
-                        expireAt,
-                        remaining
-                );
-                log.debug(
-                        "短链接缓存剩余有效期，shortCode={}, remaining={}",
-                        shortCode,
-                        remaining
-                );
-            } else {
-                // 永久链接：Redis 不设置过期时间
-                stringRedisTemplate.opsForValue().set(
-                        cacheKey,
-                        shortLink.getOriginalUrl()
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkIdCacheKey,
-                        String.valueOf(shortLink.getId())
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkStatusCacheKey,
-                        shortLink.getStatus()
-                );
-                stringRedisTemplate.opsForValue().set(
-                        shortLinkExpireAtCacheKey,
-                        expireAt
-                );
-                log.debug("短链接缓存永久有效期，shortCode={}", shortCode);
-            }
-        } catch (RedisConnectionFailureException exception) {
-            log.warn(
-                    "Redis 写入失败，本次请求仍使用 MySQL 结果，shortCode={}",
-                    shortCode,
-                    exception
-            );
-        }
-
-        localCache.put(
-                shortCode,
-                ShortLinkLocalCacheValue.from(shortLink)
-        );
-        localMissingCache.invalidate(shortCode);
-        return shortLink;
-    }
-
-    /** 删除短链接缓存，状态变更后避免继续跳转到旧地址。 */
-    private void evictShortLinkCache(String shortCode) {
-        if (shortCode == null || shortCode.isBlank()) {
-            return;
-        }
-        localCache.invalidate(shortCode);
-        localMissingCache.invalidate(shortCode);
-        try {
-            stringRedisTemplate.delete(REDIS_KEY_PREFIX + shortCode);
-            stringRedisTemplate.delete(
-                    SHORT_LINK_ID_KEY_PREFIX + shortCode
-            );
-            stringRedisTemplate.delete(
-                    SHORT_LINK_STATUS_KEY_PREFIX + shortCode
-            );
-            stringRedisTemplate.delete(
-                    SHORT_LINK_EXPIRE_AT_KEY_PREFIX + shortCode
-            );
-            stringRedisTemplate.delete(
-                    MISSING_SHORT_LINK_KEY_PREFIX + shortCode
-            );
-        } catch (RedisConnectionFailureException exception) {
-            log.warn(
-                    "Redis 删除短链接缓存失败，shortCode={}",
-                    shortCode,
-                    exception
-            );
-        }
-    }
-
-    /** 为不存在或已过期的短码写入短 TTL 负缓存，降低缓存穿透。 */
-    private void cacheMissingShortLink(String shortCode) {
-        if (shortCode == null
-                || !shortCode.matches("[0-9A-Za-z_-]{3,16}")) {
-            return;
-        }
-        localCache.invalidate(shortCode);
-        localMissingCache.put(shortCode, Boolean.TRUE);
-        try {
-            stringRedisTemplate.opsForValue().set(
-                    MISSING_SHORT_LINK_KEY_PREFIX + shortCode,
-                    NEGATIVE_CACHE_VALUE,
-                    NEGATIVE_CACHE_TTL
-            );
-        } catch (RedisConnectionFailureException exception) {
-            log.debug(
-                    "Redis 写入短链接负缓存失败，shortCode={}",
-                    shortCode,
-                    exception
-            );
-        }
-    }
-
-    /** 解析 Redis 中的过期时间；空字符串表示永久有效。 */
-    private LocalDateTime parseExpireAt(String value) {
-        if (value == null || value.isEmpty()) {
-            return null;
-        }
-        return LocalDateTime.parse(value);
+        redirectCache.put(row);
+        return row;
     }
 
     /**
